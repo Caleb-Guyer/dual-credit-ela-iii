@@ -9,6 +9,7 @@ const mime = {
   '.svg': 'image/svg+xml',
   '.jpg': 'image/jpeg',
   '.pdf': 'application/pdf',
+  '.mp3': 'audio/mpeg',
 };
 http
   .createServer(async (req, res) => {

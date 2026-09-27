@@ -74,7 +74,7 @@
 }
 .course-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 28px;
   position: relative;
 }
@@ -105,6 +105,32 @@
   height: 100%;
   display: block;
   object-fit: cover;
+}
+.course-image > svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.course-card.douglass-next:hover {
+  border-color: #a8c6e3;
+}
+.douglass-next .course-card-copy > p {
+  color: #a8c6e3;
+}
+.course-card h2 {
+  font-size: clamp(26px, 2.6vw, 35px);
+}
+.campaign-loading {
+  min-height: 100svh;
+  display: grid;
+  place-items: center;
+  font: 24px Georgia;
+  color: #c9d7cd;
+}
+@media (min-width: 651px) and (max-width: 1050px) {
+  .course-grid {
+    grid-template-columns: 1fr 1fr;
+  }
 }
 .course-number {
   position: absolute;

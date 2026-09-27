@@ -4,14 +4,50 @@ A browser game collection for Dual Credit English Language Arts III. The launch 
 
 **[Play the collection](https://caleb-guyer.github.io/dual-credit-ela-iii/)**
 
-| Work               | Campaign                                                                        | Scope                                                                              |
-| ------------------ | ------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
-| Benjamin Franklin  | [The Path to Print](https://caleb-guyer.github.io/dual-credit-ela-iii/#home)    | The supplied Part One PDF; 12 combat levels and optional detailed study            |
-| Frederick Douglass | [A Voice Unbroken](https://caleb-guyer.github.io/dual-credit-ela-iii/#douglass) | Chapters I–III of the 1845 _Narrative_; three mission genres and a final challenge |
+| Work               | Campaign                                                                                      | Scope                                                                              |
+| ------------------ | --------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| Benjamin Franklin  | [The Path to Print](https://caleb-guyer.github.io/dual-credit-ela-iii/#home)                  | The supplied Part One PDF; 12 combat levels and optional detailed study            |
+| Frederick Douglass | [A Voice Unbroken](https://caleb-guyer.github.io/dual-credit-ela-iii/#douglass)               | Chapters I–III of the 1845 _Narrative_; three mission genres and a final challenge |
+| Frederick Douglass | [A Voice Unbroken · Part II](https://caleb-guyer.github.io/dual-credit-ela-iii/#douglass-4-8) | Chapters IV–VIII; five first-person 3D games with bundled voices                   |
 
 ![ELA III course collection](docs/screenshots/ela-hub.png)
 
-The existing repository name and Pages address are retained so previously shared links continue to work. `#home` opens Franklin directly; the root address and `#course` open the collection.
+The repository is **dual-credit-ela-iii**. `#home` opens Franklin; `#douglass` opens Chapters 1–3; `#douglass-4-8` opens Chapters 4–8. The root address and `#course` open the collection.
+
+## Douglass Chapters 4–8: A Voice Unbroken, Part II
+
+[Play the five 3D chapters](https://caleb-guyer.github.io/dual-credit-ela-iii/#douglass-4-8).
+
+A separate, first-person **Three.js / WebGL** campaign. Each chapter has its own world and saved checkpoint; all five are selectable from the start.
+
+| Chapter                        | World and activity                                                                        |
+| ------------------------------ | ----------------------------------------------------------------------------------------- |
+| IV · What the creek remembers  | Explore a wooded creek and connect testimony about violence and denied justice.           |
+| V · Eyes on the horizon        | Walk the sloop, reach Baltimore and guide sheep from the wharf.                           |
+| VI · The door in the mind      | Explore the Aulds’ home, practice letters and discover the meaning of Hugh’s objection.   |
+| VII · The city is my classroom | Carry bread through city streets, trade for a lesson and decode shipyard timber markings. |
+| VIII · No one is property      | Reconstruct the estate division, follow the family story and watch the direction north.   |
+
+- WASD movement, mouse or arrow-key look, Shift sprint, Space jump, E interact. Phone/tablet controls use a movement joystick, drag-to-look, jump and contextual interaction.
+- Original low-poly scenery, dynamic lighting, shadows, water, visible hands, a compact objective compass, animated characters and cinematic dialogue framing.
+- **42 short story lines and 124 bundled synthetic speech clips**, covering narration, reported character speech, activities and quiz feedback. Automatic dialogue advancement is optional. Captions, replay, mute, reduced motion and look sensitivity are included.
+- Original music, wind/water ambience, footsteps and birds. Music and ambience lower under speech. No paid API, speech service, account or audio download beyond the static game assets is required.
+- Each completed world opens a **five-question multiple-choice challenge**, drawn from **30 questions** across the five chapters. Results explain missed answers and support retry, replay and progression to the next chapter.
+- Separate save key: `ela-iii-douglass-4-8-v1`. Chapter checkpoints, completion, best scores, missed questions and settings persist locally. Resets affect only this unit and require confirmation.
+
+The full **45-paragraph** transcript of Chapters IV–VIII is bundled locally. Every line and question has chapter/paragraph references. [The source and adaptation outline](docs/douglass-4-8-source-outline.md) distinguishes the original account from invented scenery and game mechanics. This is a stylized browser game, not a historical simulation; it does not invent an escape in Chapter VIII. Voices are synthetic performances, not historical or human-actor recordings; see [voice credits](public/douglass-next/VOICE-CREDITS.txt).
+
+![Douglass first-person creek world](docs/screenshots/douglass-4-3d.png)
+
+### Regenerating bundled speech (optional)
+
+The checked-in MP3s are ready to use. For script edits, `node scripts/export-voice.mjs voice-script.json` exports the exact text and casting. Install `kokoro-onnx`, `soundfile` and `imageio-ffmpeg` in a separate Python environment, download the model and voices from the [official model release](https://github.com/thewh1teagle/kokoro-onnx/releases/tag/model-files-v1.1), then run:
+
+```sh
+python scripts/generate-voice.py --model /path/to/kokoro-v1.0.onnx --voices /path/to/voices-v1.0.bin
+```
+
+Only generated clips and their manifest ship with the game. The model and generator are not needed to build or play it.
 
 ## Douglass: A Voice Unbroken
 
@@ -211,7 +247,7 @@ tests/            Browser journeys and production subpath server
 .github/workflows/deploy.yml
 ```
 
-Built with React, Vite, TypeScript, Canvas 2D (including the first-person raycaster), Web Audio and CSS. The small runtime icon dependency is Lucide. Progress is tied to this browser and origin: Franklin uses `franklin-path-to-print-v1`; Douglass uses `ela-iii-douglass-v1`. The course hub does not overwrite either save. Douglass resumes from the last completed story moment; completed exams and missed questions save at the result screen. Leaving an unfinished Douglass quiz starts a new round. Franklin’s Settings retain save export/import.
+Built with React, Vite, TypeScript, Three.js/WebGL, Canvas 2D (including the earlier first-person raycaster), Web Audio and CSS. The small runtime icon dependency is Lucide. Progress is tied to this browser and origin: Franklin uses `franklin-path-to-print-v1`; Douglass uses `ela-iii-douglass-v1`. The course hub does not overwrite either save. Douglass resumes from the last completed story moment; completed exams and missed questions save at the result screen. Leaving an unfinished Douglass quiz starts a new round. Franklin’s Settings retain save export/import.
 
 ## Content and asset ownership
 

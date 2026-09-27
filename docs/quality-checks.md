@@ -1,5 +1,15 @@
 # Verification record
 
+## Douglass Chapters IV–VIII
+
+- Five real WebGL worlds, 20 story moments, 42 short lines, 30 questions and 124 bundled speech files.
+- All five chapter tests walk every objective using keyboard controls; the wharf test actually gathers and delivers the sheep. Activity completion and quiz scoring are checked through the UI.
+- The chapter IV challenge intentionally scores 80%, retries its missed answer to 100%, and verifies that the stored mistake clears.
+- Every source reference resolves in the 45-paragraph transcript. Exact reported quotations match the source; every story line, activity, prompt and explanation has a bundled voice file.
+- Phone checks exercise joystick press, movement and release, source viewing, checkpoint refresh and canceled reset. Native media playback, replay, mute, and auto-advance are exercised; all 124 MP3s are requested under the deployed repository subpath.
+- Screenshot review includes all five environments and the mobile HUD. WebGL resources are released on unmount; graphics failure gives a readable recovery screen.
+- Three.js and its TypeScript definitions are the added runtime/development dependencies. The local speech-generation model is not committed or loaded in the browser.
+
 ## ELA III collection and Douglass campaign
 
 - Root and `#course` open the work selector. `#home` retains the Franklin launcher; `#douglass` opens the new campaign. Refreshes use hash navigation under the existing Pages address.
@@ -27,7 +37,7 @@
 ## Automated checks
 
 - `npm install` completed with a committed lockfile.
-- `npm run check`: TypeScript, 42 unit/data/physics/combat/speech-format/campaign tests, production build.
+- `npm run check`: TypeScript, 51 unit/data/physics/combat/speech-format/campaign tests, production build.
 - Data validation checks identifiers, page bounds, references, matching pairs, chronological order, scene coverage and question coverage per chapter.
 - Grading tests canonical answers, aliases, punctuation, number normalization, mistaken names, incomplete matching and incorrect chronology.
 - Memory tests cover wrong-answer priority, Trouble List removal, mastery, save serialization and corrupted-data recovery.
@@ -35,7 +45,7 @@
 - End-to-end tests actually answer all story recall prompts and all twelve 10-question trials, then verify all 60 scenes, 12 chapters and 252 cards are unlocked.
 - Exam test answers 18 of 20 correctly, checks 90%, saved mistakes and achievement, retries misses and reloads the save.
 - UI tests exercise every major screen and 390px phone layout, scan viewing, mobile navigation and confirmed/cancelled reset.
-- Additional browser flows verify all 272 Franklin questions in Everything mode, Easy recognition, timer pause/resume, flashcard flipping, collection filters and location-specific drills. Nineteen browser tests cover the collection, Douglass campaign, Franklin learning tools, and platformer.
+- Additional browser flows verify all 272 Franklin questions in Everything mode, Easy recognition, timer pause/resume, flashcard flipping, collection filters and location-specific drills. Twenty-seven browser tests cover the collection, Douglass campaign, Franklin learning tools, and platformer.
 - Production tests request the PDF and every scan and refresh hash routes under both `/dual-credit-ela-iii/` and `/dual-credit-ela-iii-game/`.
 
 ## Dialogue and multiple-choice checks
@@ -64,7 +74,7 @@ Desktop and phone screenshots inspected for typography, contrast, clipping, spac
 
 ## Practical limits
 
-- Speech uses the installed browser/device voices; if speech is unavailable, text and gameplay continue. Speech engine behavior is tested with controlled callbacks, and native Windows Edge voices were separately verified to start playback.
+- Franklin and Chapters I–III use installed browser/device voices; Chapters IV–VIII have bundled synthetic recordings with browser synthesis as fallback; if speech is unavailable, text and gameplay continue. Speech engine behavior is tested with controlled callbacks, and native Windows Edge voices were separately verified to start playback.
 - Historical free-form scoring remains in the source-audit code and older saves; current questions use immediate multiple-choice scoring with no confidence prompt.
 - The location diagram is schematic, not a geographical survey.
 - Browser storage can be cleared by the browser or user. Export/import is provided.

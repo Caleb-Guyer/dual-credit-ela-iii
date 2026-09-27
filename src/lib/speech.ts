@@ -14,6 +14,7 @@ export const speechAvailable = () =>
   'speechSynthesis' in window &&
   'SpeechSynthesisUtterance' in window;
 export function stopSpeech() {
+  window.dispatchEvent(new Event('franklin-speech-stop'));
   active = null;
   utterance = null;
   if (speechAvailable()) window.speechSynthesis.cancel();

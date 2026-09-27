@@ -227,7 +227,7 @@ test('course hub launches either game and preserves independent progress', async
   await expect(page.locator('.weapon-badge')).toContainText('Bow');
   const franklin = await page.evaluate(() => localStorage.getItem('franklin-path-to-print-v1'));
   await page.goto('/#course');
-  await page.getByRole('link', { name: 'Play Frederick Douglass' }).click();
+  await page.getByRole('link', { name: 'Play Frederick Douglass', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Begin campaign', exact: true })).toBeVisible();
   expect(await page.evaluate(() => localStorage.getItem('franklin-path-to-print-v1'))).toBe(
     franklin,
@@ -303,7 +303,7 @@ test('phone controls, source reading, checkpoint reload, pause and settings work
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-  await page.getByRole('link', { name: 'Play Frederick Douglass' }).click();
+  await page.getByRole('link', { name: 'Play Frederick Douglass', exact: true }).click();
   await observe(page);
   await page.getByRole('button', { name: 'Begin campaign', exact: true }).click();
   await page.getByRole('button', { name: 'Enter the story', exact: true }).click();
@@ -333,7 +333,7 @@ test('phone controls, source reading, checkpoint reload, pause and settings work
   await expect(page.getByRole('button', { name: 'Jump', exact: true })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.goto('/#course');
-  await page.getByRole('link', { name: 'Play Frederick Douglass' }).click();
+  await page.getByRole('link', { name: 'Play Frederick Douglass', exact: true }).click();
   await page.getByRole('button', { name: 'Campaign settings' }).click();
   await page.getByRole('checkbox', { name: /Relaxed challenge/ }).check();
   await page.getByRole('button', { name: 'Reset Douglass progress' }).click();
@@ -347,7 +347,7 @@ test('hub and Douglass campaign refresh at the deployed repository subpath', asy
   const base = 'http://127.0.0.1:4174/dual-credit-ela-iii/';
   await page.goto(base);
   await expect(page.locator('.course-hub')).toBeVisible();
-  await page.getByRole('link', { name: 'Play Frederick Douglass' }).click();
+  await page.getByRole('link', { name: 'Play Frederick Douglass', exact: true }).click();
   await page.reload();
   await expect(page.locator('.d-menu')).toBeVisible();
   await page.getByRole('button', { name: 'Begin campaign', exact: true }).click();

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import {
   BookOpen,
   Compass,
@@ -26,6 +26,7 @@ import { Characters, Collection, Journal, LocationMap, Study, Timeline } from '.
 import SettingsPage from './pages/Settings';
 import CourseHub from './pages/CourseHub';
 import DouglassCampaign from './douglass/Campaign';
+const NextDouglassCampaign = lazy(() => import('./douglass-next/Campaign'));
 const nav = [
   ['home', 'Play', Feather],
   ['story', 'Story', Compass],
@@ -39,7 +40,13 @@ const nav = [
   ['exam', 'Final exam', GraduationCap],
   ['settings', 'Settings', Settings],
 ] as const;
-const routes = new Set<string>([...nav.map((x) => x[0]), 'arena', 'course', 'douglass']);
+const routes = new Set<string>([
+  ...nav.map((x) => x[0]),
+  'arena',
+  'course',
+  'douglass',
+  'douglass-4-8',
+]);
 export default function App() {
   const [source, setSource] = useState<number[] | null>(null);
   const [sourceIndex, setSourceIndex] = useState(0);
@@ -88,11 +95,13 @@ function AppShell() {
     return () => window.removeEventListener('hashchange', handle);
   }, []);
   useEffect(() => {
-    if (route === 'course' || route === 'douglass') {
+    if (route === 'course' || route === 'douglass' || route === 'douglass-4-8') {
       document.title =
         route === 'course'
           ? 'Dual Credit ELA III · Choose your story'
-          : 'A Voice Unbroken · Frederick Douglass';
+          : route === 'douglass-4-8'
+            ? 'Chapters 4–8 · Frederick Douglass'
+            : 'A Voice Unbroken · Frederick Douglass';
       return;
     }
     document.title =
@@ -167,6 +176,18 @@ function AppShell() {
   }
   if (route === 'course') return <CourseHub />;
   if (route === 'douglass') return <DouglassCampaign />;
+  if (route === 'douglass-4-8')
+    return (
+      <Suspense
+        fallback={
+          <div className="campaign-loading" role="status">
+            Opening your next chapter…
+          </div>
+        }
+      >
+        <NextDouglassCampaign />
+      </Suspense>
+    );
   if (route === 'home') return <Platformer />;
   return (
     <div className="app-shell">

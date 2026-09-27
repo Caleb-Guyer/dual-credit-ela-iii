@@ -1,8 +1,11 @@
 import { ArrowUpRight, ArrowRight } from 'lucide-react';
 import { useGame } from '../components/GameContext';
 import { readDouglassSave } from '../douglass/save';
+import { readSave as readNextSave } from '../douglass-next/save';
+import { NextDouglassArt } from '../douglass-next/Art';
 
-export function StoryArt({ kind }: { kind: 'franklin' | 'douglass' }) {
+export function StoryArt({ kind }: { kind: 'franklin' | 'douglass' | 'douglass-next' }) {
+  if (kind === 'douglass-next') return <NextDouglassArt />;
   const warm = kind === 'franklin';
   return (
     <svg
@@ -92,6 +95,7 @@ export function StoryArt({ kind }: { kind: 'franklin' | 'douglass' }) {
 export default function CourseHub() {
   const { save } = useGame();
   const douglass = readDouglassSave();
+  const next = readNextSave();
   const units = [
     {
       id: 'franklin' as const,
@@ -115,6 +119,17 @@ export default function CourseHub() {
       completed: douglass.completed.length,
       total: 3,
     },
+    {
+      id: 'douglass-next' as const,
+      href: '#douglass-4-8',
+      eyebrow: 'The Narrative · Chapters 4–8',
+      name: 'Frederick Douglass',
+      subtitle: 'A Voice Unbroken · Part II',
+      genre: 'First-person 3D',
+      detail: '5 playable chapters',
+      completed: Object.values(next.chapters).filter((p) => p.completed).length,
+      total: 5,
+    },
   ];
   return (
     <main className="course-hub">
@@ -133,7 +148,7 @@ export default function CourseHub() {
           </h1>
         </div>
         <p>
-          Two lives. Two worlds. <br />
+          Choose a work. Enter its world. <br />
           Step inside the literature.
         </p>
       </section>
@@ -143,7 +158,7 @@ export default function CourseHub() {
             className={`course-card ${unit.id}`}
             href={unit.href}
             key={unit.id}
-            aria-label={`Play ${unit.name}`}
+            aria-label={`Play ${unit.name}${unit.id === 'douglass-next' ? ' Chapters 4–8' : ''}`}
           >
             <div className="course-image">
               <StoryArt kind={unit.id} />
