@@ -38,8 +38,13 @@ export class AdventureWorld {
       alpha: false,
       powerPreference: 'high-performance',
     });
-    this.renderer.setPixelRatio(Math.min(devicePixelRatio, 1.6));
-    this.renderer.shadowMap.enabled = true;
+    const gl = this.renderer.getContext();
+    const debug = gl.getExtension('WEBGL_debug_renderer_info');
+    const driver = debug ? String(gl.getParameter(debug.UNMASKED_RENDERER_WEBGL)) : '';
+    // Software renderers have no GPU. Keep the full world and controls, but reduce fill and shadow work.
+    const software = /swiftshader|llvmpipe|software rasterizer/i.test(driver);
+    this.renderer.setPixelRatio(Math.min(devicePixelRatio, software ? 0.65 : 1.6));
+    this.renderer.shadowMap.enabled = !software;
     this.renderer.shadowMap.type = T.PCFSoftShadowMap;
     this.renderer.outputColorSpace = T.SRGBColorSpace;
     this.renderer.toneMapping = T.ACESFilmicToneMapping;

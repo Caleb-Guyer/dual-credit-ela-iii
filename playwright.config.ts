@@ -9,7 +9,11 @@ export default defineConfig({
   use: {
     baseURL: 'http://127.0.0.1:5173',
     headless: true,
-    channel: process.platform === 'win32' ? 'msedge' : undefined,
+    channel: process.platform === 'win32' ? 'msedge' : 'chromium',
+    launchOptions:
+      process.env.CI || process.env.PLAYWRIGHT_SOFTWARE_GPU
+        ? { args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] }
+        : {},
     viewport: { width: 1440, height: 1000 },
     screenshot: 'only-on-failure',
     trace: 'retain-on-failure',

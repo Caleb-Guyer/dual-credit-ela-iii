@@ -20,6 +20,8 @@ The repository is **dual-credit-ela-iii**. `#home` opens Franklin; `#douglass` o
 
 A separate, first-person **Three.js / WebGL** campaign. Each chapter has its own world and saved checkpoint; all five are selectable from the start.
 
+Software graphics drivers automatically use a lighter resolution and lighting path. Hardware-accelerated browsers retain full resolution and shadows.
+
 | Chapter                        | World and activity                                                                        |
 | ------------------------------ | ----------------------------------------------------------------------------------------- |
 | IV · What the creek remembers  | Explore a wooded creek and connect testimony about violence and denied justice.           |
