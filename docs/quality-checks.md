@@ -8,7 +8,7 @@
 - Every source reference resolves in the 45-paragraph transcript. Exact reported quotations match the source; every story line, activity, prompt and explanation has a bundled voice file.
 - Phone checks exercise joystick press, movement and release, source viewing, checkpoint refresh and canceled reset. Native media playback, replay, mute, and auto-advance are exercised; all 124 MP3s are requested under the deployed repository subpath.
 - Screenshot review includes all five environments and the mobile HUD. WebGL resources are released on unmount; graphics failure gives a readable recovery screen.
-- Software graphics drivers automatically use a lower drawing resolution and omit shadow passes. CI uses full Chromium with SwiftShader, exercises real WebGL and player input, and retains failure traces. The same mode can be selected locally with `PLAYWRIGHT_SOFTWARE_GPU=1`.
+- Software graphics drivers automatically use a lower drawing resolution and omit shadow passes. The `3d` browser project uses full Chromium with SwiftShader on CI and exercises real WebGL and player input. The `standard` project retains the earlier browser setup. Both run on independent CI workers and must pass before Pages deploys; failure traces are retained. The software mode can be selected locally with `PLAYWRIGHT_SOFTWARE_GPU=1`.
 - Three.js and its TypeScript definitions are the added runtime/development dependencies. The local speech-generation model is not committed or loaded in the browser.
 
 ## ELA III collection and Douglass campaign
