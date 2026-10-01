@@ -1,0 +1,59 @@
+.dn-final .dn-chapters {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+.dn-final .dn-chapter-image {
+  aspect-ratio: 1.04;
+}
+.dn-final .dn-chapter-image .dn-art {
+  width: 145%;
+  margin-left: -22.5%;
+}
+.dn-campaign-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-top: 26px;
+}
+.dn-campaign-tools > span {
+  color: #acc1c4;
+  font-size: 12px;
+}
+.dn-final .dn-intro > p {
+  max-width: 220px;
+}
+.dn-exam-topics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 20px 0;
+}
+.dn-exam-topics > strong,
+.dn-exam-topics > span {
+  background: #20353e;
+  border: 1px solid #ffffff20;
+  padding: 12px 16px;
+  border-radius: 5px;
+  font-size: 12px;
+  color: #cbd8d5;
+}
+.dn-exam-topics b {
+  color: #f2dba8;
+  margin: 0 5px;
+}
+@media (max-width: 900px) {
+  .dn-final .dn-chapters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 520px) {
+  .dn-final .dn-chapter-image {
+    aspect-ratio: 1.15;
+  }
+  .dn-campaign-tools button {
+    width: 100%;
+  }
+  .dn-final .dn-chapter-copy h2 {
+    font-size: 23px;
+  }
+}

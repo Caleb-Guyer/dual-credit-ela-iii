@@ -1,5 +1,6 @@
-import ChapterArt from './Art';
-import { useEffect, useRef, useState, type CSSProperties } from 'react';
+import DefaultChapterArt from './Art';
+import Rhythm from './Rhythm';
+import { useEffect, useRef, useState, type CSSProperties, type ComponentType } from 'react';
 import {
   ArrowLeft,
   ArrowRight,
@@ -119,7 +120,9 @@ function SpokenLine({
           <Headphones size={16} />
         </span>
         <strong>{line.speaker}</strong>
-        <span>CH. {line.refs[0].split('.')[0]}</span>
+        <span>
+          {line.refs[0].startsWith('12.') ? 'APPENDIX' : `CH. ${line.refs[0].split('.')[0]}`}
+        </span>
       </div>
       <p aria-label={line.text}>
         {[...line.text].map((c, i) => (
@@ -242,22 +245,30 @@ function GameView({
   onVoice: () => void;
 }) {
   const canvas = useRef<HTMLCanvasElement>(null),
-    game = useRef(new AdventureEngine(mission.id, stage));
+    game = useRef(new AdventureEngine(mission.id, stage, mission));
   const [error, setError] = useState(''),
     [paused, setPaused] = useState(false),
     [line, setLine] = useState<number | null>(null),
-    [activity, setActivity] = useState(false);
-  const [hud, setHud] = useState({ stage, range: 0, bearing: 0, ready: false, herded: 0 });
+    [activity, setActivity] = useState(false),
+    [rhythm, setRhythm] = useState(false);
+  const [hud, setHud] = useState({
+    stage,
+    range: 0,
+    bearing: 0,
+    ready: false,
+    herded: 0,
+    collected: 0,
+  });
   const keys = useRef(new Set<string>()),
     touch = useRef({ forward: 0, strafe: 0 });
   const settings = useRef(save);
   settings.current = save;
   const blocked = useRef(false);
-  blocked.current = paused || line !== null || activity;
+  blocked.current = paused || line !== null || activity || rhythm;
   const cinematic = useRef<string | undefined>(undefined);
   cinematic.current =
     line !== null && !paused
-      ? mission.stages[Math.min(hud.stage, 3)].lines[line]?.speaker
+      ? mission.stages[Math.min(hud.stage, mission.stages.length - 1)].lines[line]?.speaker
       : undefined;
   const speaking = useRef(false);
   const interactRef = useRef<() => void>(() => {});
@@ -302,6 +313,7 @@ function GameView({
       const engine = game.current;
       engine.paused = blocked.current || document.hidden;
       const k = keys.current;
+      const collected = engine.collected.length;
       engine.update(dt, {
         forward:
           (k.has('KeyW') || k.has('ArrowUp') ? 1 : 0) -
@@ -311,6 +323,7 @@ function GameView({
         turn: (k.has('ArrowRight') ? 1 : 0) - (k.has('ArrowLeft') ? 1 : 0),
         sprint: k.has('ShiftLeft') || k.has('ShiftRight'),
       });
+      if (engine.collected.length > collected) audio.effect('ring');
       world.render(now / 1000, settings.current.reduced, cinematic.current, speaking.current);
       soundscape?.update(settings.current.music, engine.paused && !cinematic.current, engine.steps);
       if (now - lastHUD > 80) {
@@ -321,6 +334,7 @@ function GameView({
           bearing: engine.bearing,
           ready: engine.ready,
           herded: engine.herded,
+          collected: engine.collected.length,
         });
       }
       frame = requestAnimationFrame(update);
@@ -386,23 +400,26 @@ function GameView({
     };
   }, []);
   useEffect(() => {
-    audio.setPaused(paused || line !== null || activity);
-  }, [audio, paused, line, activity]);
+    audio.setPaused(paused || line !== null || activity || rhythm);
+  }, [audio, paused, line, activity, rhythm]);
   const complete = () => {
     game.current.completeStage();
     const next = game.current.stage;
     setLine(null);
     setActivity(false);
+    setRhythm(false);
+    setHud((h) => ({ ...h, stage: next, collected: 0 }));
     onCheckpoint(next);
     audio.effect('finish');
-    if (next === 4) onFinish();
+    if (next === mission.stages.length) onFinish();
   };
-  const current = mission.stages[hud.stage] ?? mission.stages[3];
+  const current = mission.stages[hud.stage] ?? mission.stages[mission.stages.length - 1];
   const nextLine = () => {
     if (line !== null && line + 1 < current.lines.length) setLine(line + 1);
     else {
       setLine(null);
-      if (current.task) setActivity(true);
+      if (current.rhythm) setRhythm(true);
+      else if (current.task) setActivity(true);
       else complete();
     }
   };
@@ -413,7 +430,7 @@ function GameView({
       <canvas
         className="dn-canvas"
         ref={canvas}
-        aria-label={`Chapter ${mission.id}: ${mission.title}, first-person 3D world`}
+        aria-label={`${mission.label ?? `Chapter ${mission.id}`}: ${mission.title}, first-person 3D world`}
         tabIndex={0}
         onClick={() => {
           if (!blocked.current && matchMedia('(pointer: fine)').matches) {
@@ -444,14 +461,17 @@ function GameView({
       <div className="dn-vignette" />
       {!save.reduced && (
         <div className="dn-chapter-arrival" aria-hidden="true">
-          <span>CHAPTER {mission.id}</span>
+          <span>{mission.label ?? `Chapter ${mission.id}`}</span>
           <strong>{mission.title}</strong>
           <i>{mission.subtitle}</i>
         </div>
       )}
       <header className="dn-hud">
         <div>
-          <span>FREDERICK DOUGLASS / {mission.id.toString().padStart(2, '0')}</span>
+          <span>
+            FREDERICK DOUGLASS /{' '}
+            {mission.id === 12 ? 'APPENDIX' : mission.id.toString().padStart(2, '0')}
+          </span>
           <strong>{mission.title}</strong>
         </div>
         <button
@@ -469,12 +489,21 @@ function GameView({
       {!blocked.current && !error && (
         <>
           <div className="dn-objective">
-            <div className="dn-stage-dots" aria-label={`${hud.stage} of 4 moments complete`}>
+            <div
+              className="dn-stage-dots"
+              aria-label={`${hud.stage} of ${mission.stages.length} moments complete`}
+            >
               {mission.stages.map((_, i) => (
                 <i key={i} className={i <= hud.stage ? 'lit' : ''} />
               ))}
             </div>
             <span>{current.title}</span>
+            {current.collect && (
+              <small>
+                {hud.collected}/{current.collect.points.length}{' '}
+                {current.collect.label.toLowerCase()} · Walk close to collect
+              </small>
+            )}
             {current.herd && (
               <small>{hud.herded}/3 sheep delivered · Stay nearby; press E to call</small>
             )}
@@ -561,6 +590,18 @@ function GameView({
           }}
         />
       )}
+      {rhythm && !paused && current.rhythm && (
+        <Rhythm
+          activity={current.rhythm}
+          reduced={save.reduced}
+          onBeat={() => audio.effect('ring')}
+          onComplete={() => {
+            setRhythm(false);
+            if (current.task) setActivity(true);
+            else complete();
+          }}
+        />
+      )}
       {activity && !paused && current.task && (
         <Activity
           tasks={current.task}
@@ -572,7 +613,7 @@ function GameView({
       {paused && !error && (
         <div className="dn-shade">
           <section className="dn-pause">
-            <p className="dn-kicker">CHAPTER {mission.id}</p>
+            <p className="dn-kicker">{mission.label ?? `Chapter ${mission.id}`}</p>
             <h2>A moment to breathe.</h2>
             <p>Your last completed story moment is saved.</p>
             <button className="dn-primary" onClick={() => setPaused(false)}>
@@ -708,11 +749,68 @@ function ChapterQuiz({
   );
 }
 
-export default function NextDouglassCampaign() {
+export interface CampaignConfig {
+  missions: Mission[];
+  questions: Question[];
+  source: {
+    url: string;
+    chapters: { chapter: number; label?: string; paragraphs: { ref: string; text: string }[] }[];
+  };
+  passage: (ref: Ref) => string;
+  chapterQuestions: (chapter: Chapter) => Question[];
+  readSave: () => Save;
+  freshSave: () => Save;
+  recordResult: typeof recordResult;
+  SAVE_KEY: string;
+  Art: ComponentType<{ chapter: Chapter }>;
+  unit: string;
+  part: string;
+  heading: [string, string];
+  tagline: string;
+  previous: { href: string; label: string };
+  ending: string;
+  exam?: () => Question[];
+}
+const defaultConfig: CampaignConfig = {
+  missions,
+  questions,
+  source,
+  passage,
+  chapterQuestions,
+  readSave,
+  freshSave,
+  recordResult,
+  SAVE_KEY,
+  Art: DefaultChapterArt,
+  unit: 'Chapters 4–8',
+  part: 'PART II',
+  heading: ['Knowledge is', 'a way forward.'],
+  tagline: 'Five chapters. Five worlds. See through his eyes.',
+  previous: { href: '#douglass', label: 'Chapters 1–3' },
+  ending:
+    'At the end of Chapter VIII, Douglass is still enslaved. The direction north and his determination remain with him.',
+};
+export default function NextDouglassCampaign({
+  config = defaultConfig,
+}: { config?: CampaignConfig } = {}) {
+  const {
+    missions,
+    questions,
+    source,
+    passage,
+    chapterQuestions,
+    readSave,
+    freshSave,
+    recordResult,
+    SAVE_KEY,
+    Art: ChapterArt,
+  } = config;
+  const label = (id: number) => missions.find((m) => m.id === id)?.label ?? `Chapter ${id}`;
+  const [exam, setExam] = useState(false);
   const [save, setSave] = useState(readSave),
     [storageError, setStorageError] = useState(false);
   const [screen, setScreen] = useState<'menu' | 'brief' | 'game' | 'quiz' | 'results'>('menu');
-  const [chapter, setChapter] = useState<Chapter>(4),
+  const [chapter, setChapter] = useState<Chapter>(config.missions[0].id),
     [run, setRun] = useState(0),
     [startStage, setStartStage] = useState(0);
   const [settings, setSettings] = useState(false),
@@ -752,8 +850,17 @@ export default function NextDouglassCampaign() {
   }, [screen]);
   const update = (fn: (current: Save) => Save) => setSave(fn);
   const startQuiz = (retry?: Question[]) => {
+    setExam(false);
     setPool(retry ?? chapterQuestions(chapter));
     setReview(!!retry);
+    setRun((n) => n + 1);
+    setScreen('quiz');
+  };
+  const startExam = () => {
+    if (!config.exam) return;
+    setPool(config.exam());
+    setReview(true);
+    setExam(true);
     setRun((n) => n + 1);
     setScreen('quiz');
   };
@@ -763,14 +870,15 @@ export default function NextDouglassCampaign() {
     setScreen('brief');
   };
   const enter = () => {
-    audio.current?.start([1, 2, 3, 2, 1][chapter - 4], save.music);
-    if (startStage === 4) startQuiz();
+    audio.current?.start([1, 2, 3, 2, 1][missions.findIndex((m) => m.id === chapter)], save.music);
+    if (startStage === mission.stages.length) startQuiz();
     else {
       setRun((n) => n + 1);
       setScreen('game');
     }
   };
   const finish = (correct: number, missed: Question[]) => {
+    if (exam) update((s) => ({ ...s, examScores: [...(s.examScores ?? []), correct].slice(-20) }));
     if (!review)
       update((s) =>
         recordResult(
@@ -795,7 +903,7 @@ export default function NextDouglassCampaign() {
   };
   return (
     <main
-      className={`dn-app ${save.reduced ? 'dn-reduced' : ''}`}
+      className={`dn-app ${config.exam ? 'dn-final' : ''} ${save.reduced ? 'dn-reduced' : ''}`}
       style={{ '--dn-accent': mission.color } as CSSProperties}
     >
       {screen !== 'game' && (
@@ -805,7 +913,7 @@ export default function NextDouglassCampaign() {
             <span>ELA III</span>
           </a>
           <span>
-            FREDERICK DOUGLASS <i>CHAPTERS 4—8</i>
+            FREDERICK DOUGLASS <i>{config.unit.toUpperCase()}</i>
           </span>
           <button aria-label="Campaign settings" onClick={() => setSettings(true)}>
             <Settings size={18} />
@@ -821,18 +929,14 @@ export default function NextDouglassCampaign() {
         <section className="dn-select">
           <div className="dn-intro">
             <div>
-              <p className="dn-kicker">A VOICE UNBROKEN / PART II</p>
+              <p className="dn-kicker">A VOICE UNBROKEN / {config.part}</p>
               <h1>
-                Knowledge is
+                {config.heading[0]}
                 <br />
-                <em>a way forward.</em>
+                <em>{config.heading[1]}</em>
               </h1>
             </div>
-            <p>
-              Five chapters. Five worlds.
-              <br />
-              See through his eyes.
-            </p>
+            <p>{config.tagline}</p>
           </div>
           <div className="dn-chapters">
             {missions.map((m) => {
@@ -841,13 +945,15 @@ export default function NextDouglassCampaign() {
                 <button
                   className={`dn-chapter ch-${m.id}`}
                   key={m.id}
-                  aria-label={`${p.completed ? 'Replay' : p.stage ? 'Continue' : 'Play'} Chapter ${m.id}`}
+                  aria-label={`${p.completed ? 'Replay' : p.stage ? 'Continue' : 'Play'} ${label(m.id)}`}
                   onClick={() => select(m.id, p.completed)}
                   style={{ '--dn-accent': m.color } as CSSProperties}
                 >
                   <div className="dn-chapter-image">
                     <ChapterArt chapter={m.id} />
-                    <span className="dn-chapter-number">{m.id.toString().padStart(2, '0')}</span>
+                    <span className="dn-chapter-number">
+                      {m.id === 12 ? 'A' : m.id.toString().padStart(2, '0')}
+                    </span>
                     {p.completed && (
                       <span className="dn-chapter-complete">
                         <Check size={15} />
@@ -871,6 +977,30 @@ export default function NextDouglassCampaign() {
               );
             })}
           </div>
+          {config.exam && (
+            <div className="dn-campaign-tools">
+              <button className="dn-primary" onClick={startExam}>
+                Final challenge · 20 questions
+              </button>
+              {save.missed.length > 0 && (
+                <button
+                  onClick={() => startQuiz(questions.filter((q) => save.missed.includes(q.id)))}
+                >
+                  Review missed ({save.missed.length})
+                </button>
+              )}
+              <button
+                onClick={() =>
+                  setRefs(source.chapters.flatMap((c) => c.paragraphs.map((p) => p.ref as Ref)))
+                }
+              >
+                Read the complete text ↗
+              </button>
+              {save.examScores?.length ? (
+                <span>Best final: {Math.max(...save.examScores) * 5}%</span>
+              ) : null}
+            </div>
+          )}
           <footer className="dn-select-footer">
             <span>
               <Headphones size={15} /> Best with sound
@@ -879,7 +1009,7 @@ export default function NextDouglassCampaign() {
               A first-person retelling. Scenery and challenges are imagined; narration follows the
               1845 text.
             </p>
-            <a href="#douglass">Chapters 1–3 ↗</a>
+            <a href={config.previous.href}>{config.previous.label} ↗</a>
           </footer>
         </section>
       )}
@@ -887,11 +1017,11 @@ export default function NextDouglassCampaign() {
         <section className="dn-brief">
           <div className="dn-brief-art">
             <ChapterArt chapter={chapter} />
-            <span>{chapter.toString().padStart(2, '0')}</span>
+            <span>{chapter === 12 ? 'A' : chapter.toString().padStart(2, '0')}</span>
           </div>
           <div className="dn-brief-copy">
             <p className="dn-kicker">
-              CHAPTER {chapter} / {mission.genre}
+              {label(chapter)} / {mission.genre}
             </p>
             <h1>{mission.title}</h1>
             <p>{mission.summary}</p>
@@ -914,11 +1044,11 @@ export default function NextDouglassCampaign() {
               moment.
             </small>
             <button className="dn-primary" onClick={enter}>
-              {startStage === 4
+              {startStage === mission.stages.length
                 ? 'Take chapter challenge'
                 : startStage
-                  ? `Resume Chapter ${chapter}`
-                  : `Enter Chapter ${chapter}`}
+                  ? `Resume ${label(chapter)}`
+                  : `Enter ${label(chapter)}`}
               <ArrowRight size={18} />
             </button>
             <button className="dn-text-button" onClick={() => setScreen('menu')}>
@@ -959,7 +1089,11 @@ export default function NextDouglassCampaign() {
       {screen === 'results' && (
         <section className="dn-results">
           <p className="dn-kicker">
-            {result.review ? 'REVIEW COMPLETE' : `CHAPTER ${chapter} COMPLETE`}
+            {exam
+              ? 'FINAL CHALLENGE COMPLETE'
+              : result.review
+                ? 'REVIEW COMPLETE'
+                : `${label(chapter)} COMPLETE`}
           </p>
           <div className="dn-score">
             {Math.round((result.correct / result.total) * 100)}
@@ -975,15 +1109,44 @@ export default function NextDouglassCampaign() {
           <p>
             {result.correct} of {result.total} connections made.
           </p>
+          {exam && (
+            <div className="dn-exam-topics">
+              <strong>
+                Grade{' '}
+                {result.correct / result.total >= 0.9
+                  ? 'A'
+                  : result.correct / result.total >= 0.8
+                    ? 'B'
+                    : result.correct / result.total >= 0.7
+                      ? 'C'
+                      : result.correct / result.total >= 0.6
+                        ? 'D'
+                        : 'F'}
+              </strong>
+              {missions.map((m) => {
+                const asked = pool.filter((q) => q.chapter === m.id).length,
+                  wrong = result.missed.filter((q) => q.chapter === m.id).length;
+                return (
+                  <span key={m.id}>
+                    {label(m.id)}{' '}
+                    <b>
+                      {asked - wrong}/{asked}
+                    </b>{' '}
+                    {wrong === 0 ? '· Strong' : '· Review next'}
+                  </span>
+                );
+              })}
+            </div>
+          )}
           <div className="dn-result-actions">
-            {chapter < 8 && !result.review && (
+            {chapter !== missions[missions.length - 1].id && !result.review && (
               <button
                 className="dn-primary"
                 onClick={() =>
                   select((chapter + 1) as Chapter, save.chapters[chapter + 1].completed)
                 }
               >
-                Chapter {chapter + 1}
+                {label(chapter + 1)}
                 <ArrowRight size={17} />
               </button>
             )}
@@ -992,7 +1155,9 @@ export default function NextDouglassCampaign() {
                 Retry missed ({result.missed.length})
               </button>
             )}
-            <button onClick={() => startQuiz()}>New challenge</button>
+            <button onClick={() => (exam ? startExam() : startQuiz())}>
+              {exam ? 'New final challenge' : 'New challenge'}
+            </button>
             <button onClick={() => setScreen('menu')}>Chapter select</button>
           </div>
           {result.missed.length > 0 && (
@@ -1008,11 +1173,8 @@ export default function NextDouglassCampaign() {
               ))}
             </div>
           )}
-          {chapter === 8 && !result.review && (
-            <p className="dn-ending">
-              At the end of Chapter VIII, Douglass is still enslaved. The direction north and his
-              determination remain with him.
-            </p>
+          {chapter === missions[missions.length - 1].id && !result.review && (
+            <p className="dn-ending">{config.ending}</p>
           )}
         </section>
       )}
@@ -1072,7 +1234,7 @@ export default function NextDouglassCampaign() {
             />
           </label>
           <button className="dn-reset" onClick={() => setReset(true)}>
-            Reset Chapters 4–8 progress
+            Reset {config.unit} progress
           </button>
           {reset && (
             <div className="dn-reset-confirm">
@@ -1085,7 +1247,7 @@ export default function NextDouglassCampaign() {
                   setScreen('menu');
                 }}
               >
-                Erase Chapters 4–8
+                Erase {config.unit}
               </button>
               <button onClick={() => setReset(false)}>Keep my progress</button>
             </div>
@@ -1094,7 +1256,7 @@ export default function NextDouglassCampaign() {
       )}
       {refs && (
         <Dialog
-          title={`From the Narrative · Chapter ${refs[0].split('.')[0]}`}
+          title={`From the Narrative · ${label(Number(refs[0].split('.')[0]))}`}
           onClose={() => setRefs(null)}
           wide
           className="dn-source"
@@ -1106,13 +1268,13 @@ export default function NextDouglassCampaign() {
           {refs.map((ref) => (
             <section key={ref}>
               <h3>
-                Chapter {ref.split('.')[0]} · paragraph {ref.split('.')[1]}
+                {label(Number(ref.split('.')[0]))} · paragraph {ref.split('.')[1]}
               </h3>
               <p>{passage(ref)}</p>
             </section>
           ))}
           <a
-            href={`${source.url}#link2HCH${refs[0].split('.')[0].padStart(4, '0')}`}
+            href={`${source.url}#${refs[0].startsWith('12.') ? 'link2H_APPE' : `link2HCH${refs[0].split('.')[0].padStart(4, '0')}`}`}
             target="_blank"
             rel="noreferrer"
           >

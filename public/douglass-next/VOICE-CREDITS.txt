@@ -1,6 +1,7 @@
-VOICE PRODUCTION — A Voice Unbroken, Chapters IV–VIII
+VOICE PRODUCTION — A Voice Unbroken, Chapters IV–XI and Appendix
 
-124 synthetic speech clips, generated locally for this game from its source-linked script.
+261 synthetic speech clips, generated locally for this game from its source-linked script.
+124 cover Chapters IV–VIII; 137 cover Chapters IX–XI and Appendix.
 These are not archival recordings, historical voice recreations, or human-actor recordings.
 
 Speech model: Kokoro v1.0 / Kokoro-82M, hexgrad, Apache-2.0
@@ -11,7 +12,9 @@ https://github.com/thewh1teagle/kokoro-onnx
 Narration: am_michael
 Hugh Auld's reported words: am_fenrir
 Irish dockworker's reported question: bm_george
+Sandy Jenkins and Nathan Johnson's labeled retellings: bm_george
 Street boy's reported words: am_puck
+David Ruggles's labeled retelling: am_puck
 Activity and challenge narrator: af_heart
 
 Music and environmental sound are original procedural Web Audio compositions.

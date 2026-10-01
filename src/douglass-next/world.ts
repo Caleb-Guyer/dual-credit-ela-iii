@@ -28,6 +28,8 @@ export class AdventureWorld {
   private observer: ResizeObserver;
   private disposed = false;
   private lastStage = -1;
+  private finalScenes = new Map<string, T.Group>();
+  private pickups: { stage: number; index: number; group: T.Group }[] = [];
   constructor(
     readonly canvas: HTMLCanvasElement,
     readonly engine: AdventureEngine,
@@ -45,12 +47,24 @@ export class AdventureWorld {
     const software = /swiftshader|llvmpipe|software rasterizer/i.test(driver);
     this.renderer.setPixelRatio(Math.min(devicePixelRatio, software ? 0.65 : 1.6));
     this.renderer.shadowMap.enabled = !software;
-    this.renderer.shadowMap.type = T.PCFSoftShadowMap;
+    this.renderer.shadowMap.type = T.PCFShadowMap;
     this.renderer.outputColorSpace = T.SRGBColorSpace;
     this.renderer.toneMapping = T.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.2;
     const id = engine.mission.id;
-    const sky = { 4: '#a5bfbc', 5: '#a2c4d3', 6: '#e8c7a4', 7: '#adccdc', 8: '#b7b0c7' }[id];
+    const sky = (
+      {
+        4: '#a5bfbc',
+        5: '#a2c4d3',
+        6: '#e8c7a4',
+        7: '#adccdc',
+        8: '#b7b0c7',
+        9: '#c7b392',
+        10: '#acc4b0',
+        11: '#a3c6d5',
+        12: '#77839b',
+      } as Record<number, string>
+    )[id];
     this.scene.background = new T.Color(sky);
     this.scene.fog = new T.Fog(sky, 30, 110);
     this.scene.add(new T.HemisphereLight('#fff0d2', '#4a6560', 2.4));
@@ -85,6 +99,35 @@ export class AdventureWorld {
       group.add(crystal);
       this.scene.add(group);
       this.objectives.push(group);
+      s.collect?.points.forEach((point, index) => {
+        const item = new T.Group();
+        item.position.set(point[0], 0.6, point[1]);
+        if (s.collect!.label === 'Oil cargo') {
+          this.cylinder(0, 0, 0, 0.38, 0.85, '#755b40', item);
+          for (const y of [-0.3, 0.3]) this.cylinder(0, y, 0, 0.395, 0.07, '#a6a290', item);
+        } else if (s.collect!.label === 'Wood bundles') {
+          for (const x of [-0.18, 0.18]) {
+            const wood = this.cylinder(x, 0, 0, 0.15, 1.1, '#9b7a4e', item);
+            wood.rotation.z = Math.PI / 2;
+          }
+        } else if (s.collect!.label === 'Shipyard tools') {
+          this.box(0, 0, 0, 0.12, 0.7, 0.12, '#936c41', item);
+          this.box(0, 0.32, 0, 0.5, 0.16, 0.18, '#738e96', item);
+        } else if (s.collect!.label === 'Horse tracks') {
+          this.box(0, -0.52, 0, 0.35, 0.03, 0.4, '#efd6a6', item);
+          this.box(0.3, -0.52, 0.5, 0.35, 0.03, 0.4, '#efd6a6', item);
+        } else if (s.collect!.label === 'Argument fragments') {
+          this.box(0, 0, 0, 0.55, 0.35, 0.06, '#e6d5b5', item);
+          this.box(0, 0.02, 0.04, 0.3, 0.025, 0.03, '#596f75', item);
+        } else {
+          this.sphere(0, 0, 0, 0.35, 0.3, 0.4, '#d4b17e', item);
+          this.box(0, -0.23, 0, 0.7, 0.09, 0.7, '#8e6b45', item);
+        }
+        const glint = this.sphere(0, 1.2, 0, 0.09, 0.15, 0.09, '#ffe3a3', item);
+        glint.material = this.mat('#ffe3a3', '#bb8941');
+        this.scene.add(item);
+        this.pickups.push({ stage: i, index, group: item });
+      });
       if (s.object === 'person' || (id === 7 && i === 3)) {
         const character = this.person(i, id);
         character.position.set(s.at[0], 0, s.at[1] - 0.65);
@@ -319,14 +362,19 @@ export class AdventureWorld {
     const sail = new T.Mesh(sailGeo, sailMat);
     sail.position.set(0, 6.7, -2);
     ship.add(sail);
-    this.text('BALTIMORE', 0, 1.4, -12, 2.1, '#fff0c3', ship);
+    if (this.engine.mission.id < 9) this.text('BALTIMORE', 0, 1.4, -12, 2.1, '#fff0c3', ship);
     return ship;
   }
   private person(index: number, chapter: Chapter) {
     const g = new T.Group();
     const sophia = chapter === 6 && index === 0;
     const boy = chapter === 7 && (index === 1 || index === 3);
-    const skin = chapter === 5 ? '#ac805f' : '#d3b495';
+    const skin =
+      chapter === 9 && index === 1
+        ? '#d3b495'
+        : chapter >= 9 || chapter === 5
+          ? '#ac805f'
+          : '#d3b495';
     const coat = sophia ? '#728984' : boy ? '#a68a64' : '#526779';
     for (const x of [-0.13, 0.13]) {
       this.box(x, 0.4, 0, 0.18, 0.8, 0.2, '#505651', g);
@@ -356,6 +404,10 @@ export class AdventureWorld {
     return g;
   }
   private build(chapter: Chapter) {
+    if (chapter >= 9) {
+      this.buildFinal();
+      return;
+    }
     this.scene.add(this.port);
     if (chapter !== 5) {
       this.box(0, -0.3, -6, 90, 0.5, 105, chapter === 7 ? '#b0ab96' : '#73826a');
@@ -513,6 +565,157 @@ export class AdventureWorld {
     if (chapter !== 5)
       for (let i = 0; i < 7; i++) this.sphere(-52 + i * 19, 1, -75, 17, 9 + (i % 3), 11, '#7f9290');
   }
+  private buildFinal() {
+    const scenes = [...new Set(this.engine.mission.stages.map((s) => s.scene!))];
+    for (const name of scenes) {
+      const before = new Set(this.scene.children);
+      const urban = ['newyork', 'newbedford', 'shipyard'].includes(name),
+        night = name === 'appendix';
+      this.box(0, -0.3, -5, 90, 0.5, 105, urban ? '#a2a394' : night ? '#555d6b' : '#7f9473');
+      this.box(0, -0.01, -5, 9, 0.05, 58, urban ? '#b9b3a0' : night ? '#81818a' : '#b3a485');
+      for (let z = -29; z < 20; z += 1.1)
+        this.box(0, 0.025, z, 8, 0.03, 0.06, urban ? '#827f72' : '#aa9677');
+      for (const o of obstacles(this.engine.mission.id))
+        this.house(o.x, o.z, o.w, o.d, o.h, urban ? '#b39e88' : '#aa9475');
+      this.house(-19, -23, 7, 7, 5, urban ? '#998779' : '#bbaa87');
+      this.house(20, 9, 7, 8, 7, urban ? '#7d8c8b' : '#a3987f');
+      if (!urban && !night) {
+        for (let i = 0; i < 14; i++) this.tree((i % 2 ? 1 : -1) * (19 + (i % 5)), 19 - i * 4, i);
+      }
+      for (const x of [-8, 8]) {
+        this.lantern(x, 4);
+        this.lantern(x, -15);
+      }
+      if (['farm', 'kitchen', 'stable'].includes(name)) {
+        this.fence(-9, 1, 19, false);
+        this.fence(9, -16, 16, false);
+        this.house(19, -15, 10, 8, 4, '#927b5a');
+        this.box(8, 0.8, 10, 2, 0.15, 2.8, '#b59767');
+        for (const x of [7, 9])
+          for (const z of [9, 11]) {
+            const wheel = this.cylinder(x, 0.55, z, 0.5, 0.16, '#63594a');
+            wheel.rotation.z = Math.PI / 2;
+          }
+        if (name === 'farm')
+          for (const x of [6.6, 8.3]) {
+            this.sphere(x, 0.85, 6, 0.5, 0.6, 1, '#c0b096');
+            this.sphere(x, 1.1, 4.95, 0.35, 0.4, 0.35, '#bba68b');
+            for (const xx of [-0.25, 0.25])
+              for (const z of [5.5, 6.6]) this.box(x + xx, 0.4, z, 0.13, 0.8, 0.13, '#695c4d');
+          }
+        if (name === 'kitchen') {
+          this.text('ST. MICHAEL’S', 0, 3, -27, 5);
+          this.box(0, 0, 8, 16, 0.07, 16, '#a28560');
+          this.box(0, 3.6, 8, 16, 0.2, 16, '#8e795e');
+          for (const o of obstacles(this.engine.mission.id, 'kitchen').slice(2))
+            this.box(o.x, o.h / 2, o.z, o.w, o.h, o.d, '#bdad8e');
+          for (const z of [3, 8, 13]) this.box(0, 3.4, z, 16, 0.2, 0.25, '#695c48');
+          for (const x of [-7.75, 7.75]) {
+            this.box(x, 2.1, 7, 0.05, 1.4, 2, '#b4bcbc');
+            this.box(x, 2.1, 7, 0.08, 0.08, 2, '#685f50');
+          }
+          const hearth = new T.PointLight('#ffe1a5', 20, 16);
+          hearth.position.set(-6, 2, 11);
+          this.scene.add(hearth);
+          this.box(-6, 0.75, 12, 2, 0.12, 1.1, '#866c4e');
+          this.box(-6, 0.35, 12, 0.2, 0.7, 0.9, '#6b5e49');
+        }
+        if (name === 'stable') {
+          this.house(0, -30, 14, 8, 4, '#92775a');
+          for (const x of [-9, 9]) this.box(x, 2, -23, 0.3, 4, 0.4, '#6a5948');
+          this.box(0, 4, -23, 18, 0.3, 0.4, '#6a5948');
+        }
+      }
+      if (['shore', 'shipyard', 'newbedford'].includes(name)) {
+        this.waterPlane(0, -58, 170, 55, -0.1);
+        this.ship(-15, -45, 0.4);
+        this.ship(13, -47, 0.6);
+        for (let i = 0; i < 6; i++) {
+          this.box(9 + i * 0.8, 0.23, -10, 0.6, 0.46, 3, '#957b58');
+          this.cylinder(-7 + i * 0.9, 0.5, -22, 0.35, 1, '#796346');
+        }
+        if (name === 'shore') {
+          this.box(-8, 0.2, -27, 5, 0.3, 1.2, '#755c43');
+          this.text('CHESAPEAKE', 0, 2.4, -29, 4.5);
+        }
+        if (name === 'shipyard') {
+          this.text('BALTIMORE', 0, 3, -28, 4.5);
+          this.box(-7, 1, -7, 3, 0.15, 1, '#9a7e57');
+        }
+        if (name === 'newbedford') {
+          this.text('NEW BEDFORD', 0, 3, -28, 5);
+          this.house(20, -2, 8, 9, 6, '#a9aca0');
+        }
+      }
+      if (name === 'woods') {
+        for (let i = 0; i < 12; i++)
+          this.tree((i % 2 ? 1 : -1) * (9 + (i % 3) * 2), 12 - i * 3, i + 2);
+        this.house(-18, -16, 6, 5, 3, '#8d7556');
+      }
+      if (name === 'school') {
+        this.house(0, -32, 14, 6, 3, '#a49170');
+        this.box(0, 2.2, -18, 4, 2, 0.15, '#3e6059');
+        this.text('A  B  C', 0, 2.2, -17.88, 3);
+        for (const x of [-7, 7])
+          for (const z of [-5, -11]) {
+            this.box(x, 0.8, z, 3, 0.15, 1, '#9e825e');
+            this.box(x, 0.4, z, 0.2, 0.8, 0.8, '#635848');
+          }
+      }
+      if (name === 'jail') {
+        this.house(0, -28, 16, 8, 6, '#929e9b');
+        for (let x = -5; x <= 5; x += 0.7) this.box(x, 2, -25, 0.06, 4, 0.1, '#3d4e54');
+        this.text('EASTON', 0, 4.9, -24.5, 3);
+      }
+      if (name === 'newyork') {
+        this.text('NEW YORK', 0, 3, -28, 4.5);
+        for (const z of [12, -14]) {
+          this.house(-20, z, 8, 7, 8, '#a79680');
+          this.house(20, z, 8, 7, 9, '#8e8b82');
+        }
+        this.text('RUGGLES', -8, 2.4, -5, 2.5);
+      }
+      if (name === 'meeting' || name === 'appendix') {
+        this.box(0, 0.1, -16, 14, 0.2, 8, '#8a7567');
+        this.box(-5, 1, -3, 3, 0.15, 1.1, '#a9895e');
+        this.box(-5, 0.5, -3, 0.25, 1, 1, '#735b47');
+        for (const x of [-7, 7])
+          for (const z of [0, 5, 10]) {
+            this.box(x, 0.5, z, 3, 0.12, 1.1, '#8d7560');
+            this.box(x, 0.25, z, 0.16, 0.5, 1, '#685844');
+          }
+        this.text(
+          name === 'meeting' ? 'NANTUCKET · 1841' : 'TRUTH · LOVE · JUSTICE',
+          0,
+          3.6,
+          -19,
+          7,
+        );
+        if (night) {
+          const light = new T.PointLight('#eec689', 30, 35);
+          light.position.set(0, 5, -8);
+          this.scene.add(light);
+          for (let i = 0; i < 22; i++) {
+            const star = this.sphere(
+              Math.sin(i * 3) * 30,
+              13 + (i % 4),
+              -35,
+              0.07,
+              0.07,
+              0.07,
+              '#f9e0b3',
+            );
+            star.material = this.mat('#f9e0b3', '#cba066');
+          }
+        }
+      }
+      const group = new T.Group();
+      for (const item of [...this.scene.children]) if (!before.has(item)) group.add(item);
+      group.visible = false;
+      this.scene.add(group);
+      this.finalScenes.set(name, group);
+    }
+  }
   private buildHands() {
     for (const sign of [-1, 1]) {
       const arm = this.box(sign * 0.3, -0.37, -0.52, 0.14, 0.34, 0.18, '#758788', this.hands);
@@ -569,7 +772,15 @@ export class AdventureWorld {
       this.objectives.forEach((g, i) => (g.visible = i === game.stage));
       this.npcs.forEach((g, i) => (g.visible = i === game.stage));
       if (id === 5) this.port.visible = game.stage >= 2;
+      this.finalScenes.forEach((g, key) => (g.visible = key === game.target?.scene));
     }
+    this.pickups.forEach((p) => {
+      p.group.visible = p.stage === game.stage && !game.collected.includes(p.index);
+      if (p.group.visible && !reduced) {
+        p.group.rotation.y = time * 0.65;
+        p.group.position.y = 0.6 + Math.sin(time * 2 + p.index) * 0.08;
+      }
+    });
     this.objectives.forEach((g, i) => {
       g.visible = i === game.stage && !conversation;
       if (g.visible) {
@@ -589,7 +800,7 @@ export class AdventureWorld {
         const mouth = g.getObjectByName('mouth');
         if (mouth)
           mouth.scale.y =
-            conversation?.includes('reported speech') && speaking
+            conversation && !conversation.startsWith('Frederick Douglass') && speaking
               ? 0.04 + Math.abs(Math.sin(time * 16)) * 0.075
               : 0.025;
       }

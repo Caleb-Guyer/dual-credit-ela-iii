@@ -8,6 +8,7 @@ export interface Progress {
 }
 export interface Save {
   version: 1;
+  examScores?: number[];
   chapters: Record<number, Progress>;
   missed: string[];
   music: boolean;

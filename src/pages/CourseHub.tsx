@@ -2,9 +2,16 @@ import { ArrowUpRight, ArrowRight } from 'lucide-react';
 import { useGame } from '../components/GameContext';
 import { readDouglassSave } from '../douglass/save';
 import { readSave as readNextSave } from '../douglass-next/save';
+import { readSave as readFinalSave } from '../douglass-final/save';
+import FinalArt from '../douglass-final/Art';
 import { NextDouglassArt } from '../douglass-next/Art';
 
-export function StoryArt({ kind }: { kind: 'franklin' | 'douglass' | 'douglass-next' }) {
+export function StoryArt({
+  kind,
+}: {
+  kind: 'franklin' | 'douglass' | 'douglass-next' | 'douglass-final';
+}) {
+  if (kind === 'douglass-final') return <FinalArt chapter={11} />;
   if (kind === 'douglass-next') return <NextDouglassArt />;
   const warm = kind === 'franklin';
   return (
@@ -96,6 +103,7 @@ export default function CourseHub() {
   const { save } = useGame();
   const douglass = readDouglassSave();
   const next = readNextSave();
+  const final = readFinalSave();
   const units = [
     {
       id: 'franklin' as const,
@@ -130,6 +138,17 @@ export default function CourseHub() {
       completed: Object.values(next.chapters).filter((p) => p.completed).length,
       total: 5,
     },
+    {
+      id: 'douglass-final' as const,
+      href: '#douglass-9-end',
+      eyebrow: 'The Narrative · Chapters 9–end',
+      name: 'Frederick Douglass',
+      subtitle: 'A Voice Unbroken · The Final Act',
+      genre: 'First-person 3D',
+      detail: '3 chapters + Appendix',
+      completed: Object.values(final.chapters).filter((p) => p.completed).length,
+      total: 4,
+    },
   ];
   return (
     <main className="course-hub">
@@ -158,7 +177,7 @@ export default function CourseHub() {
             className={`course-card ${unit.id}`}
             href={unit.href}
             key={unit.id}
-            aria-label={`Play ${unit.name}${unit.id === 'douglass-next' ? ' Chapters 4–8' : ''}`}
+            aria-label={`Play ${unit.name}${unit.id === 'douglass-final' ? ' Chapters 9–end' : unit.id === 'douglass-next' ? ' Chapters 4–8' : ''}`}
           >
             <div className="course-image">
               <StoryArt kind={unit.id} />

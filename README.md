@@ -4,15 +4,41 @@ A browser game collection for Dual Credit English Language Arts III. The launch 
 
 **[Play the collection](https://caleb-guyer.github.io/dual-credit-ela-iii/)**
 
-| Work               | Campaign                                                                                      | Scope                                                                              |
-| ------------------ | --------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
-| Benjamin Franklin  | [The Path to Print](https://caleb-guyer.github.io/dual-credit-ela-iii/#home)                  | The supplied Part One PDF; 12 combat levels and optional detailed study            |
-| Frederick Douglass | [A Voice Unbroken](https://caleb-guyer.github.io/dual-credit-ela-iii/#douglass)               | Chapters I–III of the 1845 _Narrative_; three mission genres and a final challenge |
-| Frederick Douglass | [A Voice Unbroken · Part II](https://caleb-guyer.github.io/dual-credit-ela-iii/#douglass-4-8) | Chapters IV–VIII; five first-person 3D games with bundled voices                   |
+| Work               | Campaign                                                                                              | Scope                                                                              |
+| ------------------ | ----------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| Benjamin Franklin  | [The Path to Print](https://caleb-guyer.github.io/dual-credit-ela-iii/#home)                          | The supplied Part One PDF; 12 combat levels and optional detailed study            |
+| Frederick Douglass | [A Voice Unbroken](https://caleb-guyer.github.io/dual-credit-ela-iii/#douglass)                       | Chapters I–III of the 1845 _Narrative_; three mission genres and a final challenge |
+| Frederick Douglass | [A Voice Unbroken · Part II](https://caleb-guyer.github.io/dual-credit-ela-iii/#douglass-4-8)         | Chapters IV–VIII; five first-person 3D games with bundled voices                   |
+| Frederick Douglass | [A Voice Unbroken · The Final Act](https://caleb-guyer.github.io/dual-credit-ela-iii/#douglass-9-end) | Chapters IX–XI and Appendix; 21 playable story scenes                              |
 
 ![ELA III course collection](docs/screenshots/ela-hub.png)
 
-The repository is **dual-credit-ela-iii**. `#home` opens Franklin; `#douglass` opens Chapters 1–3; `#douglass-4-8` opens Chapters 4–8. The root address and `#course` open the collection.
+The repository is **dual-credit-ela-iii**. `#home` opens Franklin; `#douglass` opens Chapters 1–3; `#douglass-4-8` opens Chapters 4–8; `#douglass-9-end` opens the ending. The root address and `#course` open the collection.
+
+## Douglass Chapters 9–end: The Final Act
+
+[Play the final campaign](https://caleb-guyer.github.io/dual-credit-ela-iii/#douglass-9-end).
+
+Four selectable first-person 3D sections complete the **1845 Narrative**. The book has eleven numbered chapters; the fourth section is the **Appendix**, not an invented Chapter XII.
+
+| Section                         | Playable arc                                                                                                                                                                    |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| IX · Under the same roof        | Search Thomas Auld’s kitchen, examine religious hypocrisy, follow the horse’s trail for food, and leave for Covey.                                                              |
+| X · A voice unbroken            | Gather wood, watch the Chesapeake, meet Sandy, stand your ground, teach a hidden class, plan the unsuccessful canoe attempt, face separation in jail, and work at the shipyard. |
+| XI · My own name                | Leave the wage contract, find Ruggles’s shelter, meet Nathan Johnson, deliver oil cargo, work for your own household, and speak at Nantucket.                                   |
+| Appendix · Truth, love, justice | Examine the difference between faith and slaveholding religion, connect the parody’s irony, and carry the final pledge forward.                                                 |
+
+- **21 scenes**, changing 3D settings, resource searches and deliveries, six timing activities, short animated dialogue, cinematic character framing, original music and environmental sound.
+- **137 new bundled synthetic speech clips**, including Douglass’s narration, Sandy, Ruggles and Nathan’s source-backed retellings, decisions and quiz explanations. All factual speech is labeled and cited. Spoken lines can auto-advance; replay, mute and captions are available.
+- **42 multiple-choice questions**. Each finished section draws five questions; the **20-question final challenge** draws five from each section. Results show score, grade, section strengths, explanations and missed-answer review. Exams and quizzes are available without story locks.
+- Separate save key: `ela-iii-douglass-9-end-v1`. Checkpoints, chapter completion, best scores, missed questions, recent exam scores and preferences survive reload. Resetting this unit requires confirmation.
+- Keyboard and touch movement; a compact compass points to remaining supplies before the story objective. Timing challenges keep earlier successful hits and allow unlimited retries. Reduced motion offers untimed input.
+
+All **90 paragraphs** of IX, X, XI and the Appendix were read and bundled in `src/douglass-final/source.json`, including the certificate, verse, footnotes and final signature. [The detailed source outline](docs/douglass-final-source-outline.md) records the chronology, people, ideas, events and adaptation decisions. The complete text is readable inside the campaign. **The successful escape method is deliberately withheld**, as it is in the book; the story resumes in New York. Sandy’s root is reported as his belief, and the Appendix preserves Douglass’s distinction between Christianity and religious support for slavery.
+
+Scenery, supply locations, delivery counts, walking routes and timing beats are original game illustrations. They do not change historical outcomes or claim to reproduce an exact site. The scene changes represent different places and times, rather than a geographically continuous street. Voice assets share the locally generated speech system and [credits](public/douglass-next/VOICE-CREDITS.txt) with Chapters 4–8.
+
+![The final Douglass campaign](docs/screenshots/douglass-final-11.png)
 
 ## Douglass Chapters 4–8: A Voice Unbroken, Part II
 
@@ -218,7 +244,9 @@ npm run check
 npm run test:e2e
 ```
 
-`check` runs formatting, TypeScript, 42 unit/data/physics/combat/speech-format tests and the production build. Nineteen browser tests use installed Microsoft Edge on Windows; on macOS/Linux first run `npx playwright install chromium`. CI installs Chromium and its system dependencies automatically.
+`check` runs formatting, TypeScript, 60 unit/data/physics/combat/speech-format tests and the production build. The 33 browser tests use installed Microsoft Edge on Windows; on macOS/Linux first run `npx playwright install chromium`. CI installs Chromium and its system dependencies automatically. Its `standard`, `3d`, and `final3d` projects run independently; software graphics settings apply only to the 3D projects.
+
+Final-act tests walk every objective and pickup, complete the timing activities with real button input, finish all four section quizzes, check a 95% final score and corrected mistakes, reload checkpoints, exercise touch controls, verify source access through THE END, and serve the voice assets under the production Pages subpath. Source tests validate all references, withheld escape details, balanced exams and the Appendix distinction.
 
 Douglass tests play all three missions using movement controls, advance every dialogue, complete a 20-question challenge with a deliberate miss, verify the 95% grade, retry the miss, and check saved results. They also cover primary-text references, exact quotations, estate reachability, ray/wall collision, chapter-balanced quiz selection, independent campaign saves, touch input, pause, checkpoint reload, source viewing, and deployed-subpath refresh.
 
@@ -230,6 +258,8 @@ Browser tests play full combat levels with bow, axe, boomerang and comet staff t
 src/
   data/           Facts, questions, chapters, events, people, places, cards
   douglass/       Three-genre campaign, renderer, dialogue, music, quiz, saves, complete chapter transcript and source-cited content
+  douglass-next/  Shared 3D movement, worlds, speech, timing activities; Chapters 4–8 content and save
+  douglass-final/ Chapters 9–end campaign, original posters, 42 questions, complete source and independent save
   components/     Save provider, accessible dialogs, source viewer, choice questions and animated conversations
   game/           Canvas artwork, weapon loadouts, combat, movement physics, worlds and original music
   pages/          Course hub, Franklin platformer, story journal, quiz/bosses, library tools and settings
@@ -242,6 +272,7 @@ src/
   course.css      ELA III collection launcher
 public/
   source/         Canonical PDF and all 27 scan images
+  douglass-next/voice/ Bundled synthetic MP3 dialogue and quiz explanations
   press-room.svg  Original decorative artwork
 docs/             Source outline, validation record and screenshots
 scripts/          GitHub publishing helper

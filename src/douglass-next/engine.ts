@@ -7,7 +7,7 @@ export interface Obstacle {
   d: number;
   h: number;
 }
-export const obstacles = (chapter: Chapter): Obstacle[] => {
+export const obstacles = (chapter: Chapter, scene?: string): Obstacle[] => {
   if (chapter === 4)
     return [
       { x: -5, z: 7, w: 2, d: 7, h: 1 },
@@ -36,6 +36,20 @@ export const obstacles = (chapter: Chapter): Obstacle[] => {
       { x: -12, z: -20, w: 6, d: 12, h: 6 },
       { x: -3, z: -10, w: 2, d: 2, h: 0.55 },
       { x: 4, z: -18, w: 2, d: 2, h: 0.55 },
+    ];
+  if (chapter >= 9)
+    return [
+      { x: -13, z: -5, w: 6, d: 8, h: 6 },
+      { x: 13, z: -20, w: 6, d: 8, h: 6 },
+      ...(scene === 'kitchen'
+        ? [
+            { x: -8, z: 8, w: 0.4, d: 16, h: 3.5 },
+            { x: 8, z: 8, w: 0.4, d: 16, h: 3.5 },
+            { x: 0, z: 16, w: 16, d: 0.4, h: 3.5 },
+            { x: -5.3, z: 0, w: 5.4, d: 0.4, h: 3.5 },
+            { x: 5.3, z: 0, w: 5.4, d: 0.4, h: 3.5 },
+          ]
+        : []),
     ];
   return [
     { x: 9, z: 8, w: 8, d: 8, h: 5 },
@@ -69,14 +83,18 @@ export class AdventureEngine {
     { at: [4, -13], home: false },
   ];
   whistle = 0;
-  constructor(chapter: Chapter, stage = 0) {
-    this.mission = missions.find((m) => m.id === chapter)!;
-    this.stage = Math.min(4, Math.max(0, stage));
+  collected: number[] = [];
+  constructor(chapter: Chapter, stage = 0, mission?: Mission) {
+    this.mission = mission ?? missions.find((m) => m.id === chapter)!;
+    if (!this.mission) throw new Error(`Unknown chapter ${chapter}`);
+    this.stage = Math.min(this.mission.stages.length, Math.max(0, stage));
     this.position = [
-      ...(stage > 0 ? this.mission.stages[Math.min(stage - 1, 3)].at : this.mission.spawn),
+      ...(stage > 0
+        ? this.mission.stages[Math.min(stage - 1, this.mission.stages.length - 1)].at
+        : this.mission.spawn),
     ];
     this.yaw = this.mission.yaw;
-    if (stage > 0 && stage < 4) this.face(this.mission.stages[stage].at);
+    if (stage > 0 && stage < this.mission.stages.length) this.face(this.mission.stages[stage].at);
   }
   face(target: Point) {
     this.yaw = Math.atan2(target[0] - this.position[0], -(target[1] - this.position[1]));
@@ -92,7 +110,7 @@ export class AdventureEngine {
       const dock = this.stage >= 2 && z <= -9 && z >= -28 && x > -4 && x < 17;
       if (!ship && !dock) return false;
     }
-    return !obstacles(this.mission.id).some(
+    return !obstacles(this.mission.id, this.target?.scene).some(
       (o) =>
         Math.abs(x - o.x) < o.w / 2 + 0.28 && Math.abs(z - o.z) < o.d / 2 + 0.28 && this.y < o.h,
     );
@@ -101,7 +119,7 @@ export class AdventureEngine {
     if (!this.paused && this.y <= 0.01) this.velocityY = 5;
   }
   update(dt: number, input: Input) {
-    if (this.paused || this.stage >= 4) {
+    if (this.paused || this.stage >= this.mission.stages.length) {
       this.moving = false;
       return;
     }
@@ -123,6 +141,10 @@ export class AdventureEngine {
     this.y = Math.max(0, this.y + this.velocityY * dt);
     if (this.y === 0) this.velocityY = Math.max(0, this.velocityY);
     this.whistle = Math.max(0, this.whistle - dt);
+    this.target?.collect?.points.forEach((point, i) => {
+      if (!this.collected.includes(i) && distance(point, this.position) < 1.5)
+        this.collected.push(i);
+    });
     if (this.mission.id === 5 && this.stage === 2) {
       for (const sheep of this.sheep) {
         if (sheep.home) continue;
@@ -142,15 +164,21 @@ export class AdventureEngine {
   get target() {
     return this.mission.stages[this.stage];
   }
+  get destination(): Point | undefined {
+    const remaining = this.target?.collect?.points.filter((_, i) => !this.collected.includes(i));
+    return remaining?.length
+      ? [...remaining].sort((a, b) => distance(a, this.position) - distance(b, this.position))[0]
+      : this.target?.at;
+  }
   get range() {
-    return this.target ? distance(this.position, this.target.at) : 0;
+    return this.destination ? distance(this.position, this.destination) : 0;
   }
   get bearing() {
-    return this.target
+    return this.destination
       ? normalizeAngle(
           Math.atan2(
-            this.target.at[0] - this.position[0],
-            -(this.target.at[1] - this.position[1]),
+            this.destination![0] - this.position[0],
+            -(this.destination![1] - this.position[1]),
           ) - this.yaw,
         )
       : 0;
@@ -159,7 +187,12 @@ export class AdventureEngine {
     return this.sheep.filter((s) => s.home).length;
   }
   get ready() {
-    return this.stage < 4 && this.range < 3.1 && (!this.target?.herd || this.herded === 3);
+    return (
+      this.stage < this.mission.stages.length &&
+      distance(this.position, this.target.at) < 3.1 &&
+      (!this.target?.collect || this.collected.length === this.target.collect.points.length) &&
+      (!this.target?.herd || this.herded === 3)
+    );
   }
   interact() {
     if (this.paused) return false;
@@ -170,7 +203,8 @@ export class AdventureEngine {
     return this.ready;
   }
   completeStage() {
-    this.stage = Math.min(4, this.stage + 1);
+    this.stage = Math.min(this.mission.stages.length, this.stage + 1);
+    this.collected = [];
   }
   snapshot() {
     return {
@@ -181,6 +215,7 @@ export class AdventureEngine {
       ready: this.ready,
       herded: this.herded,
       elapsed: this.elapsed,
+      collected: [...this.collected],
     };
   }
 }

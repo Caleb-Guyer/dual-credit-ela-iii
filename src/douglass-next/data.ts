@@ -1,6 +1,6 @@
 import source from './source.json' with { type: 'json' };
 
-export type Chapter = 4 | 5 | 6 | 7 | 8;
+export type Chapter = 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12;
 export type Ref = `${Chapter}.${number}`;
 export type Point = [number, number];
 export interface Line {
@@ -24,9 +24,13 @@ export interface Stage {
   lines: Line[];
   task?: Task[];
   herd?: boolean;
+  scene?: string;
+  collect?: { label: string; points: Point[] };
+  rhythm?: { title: string; verb: string; caption: string };
 }
 export interface Mission {
   id: Chapter;
+  label?: string;
   title: string;
   subtitle: string;
   genre: string;

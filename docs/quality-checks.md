@@ -38,7 +38,7 @@
 ## Automated checks
 
 - `npm install` completed with a committed lockfile.
-- `npm run check`: TypeScript, 51 unit/data/physics/combat/speech-format/campaign tests, production build.
+- `npm run check`: TypeScript, 60 unit/data/physics/combat/speech-format/campaign tests, production build.
 - Data validation checks identifiers, page bounds, references, matching pairs, chronological order, scene coverage and question coverage per chapter.
 - Grading tests canonical answers, aliases, punctuation, number normalization, mistaken names, incomplete matching and incorrect chronology.
 - Memory tests cover wrong-answer priority, Trouble List removal, mastery, save serialization and corrupted-data recovery.
@@ -46,7 +46,7 @@
 - End-to-end tests actually answer all story recall prompts and all twelve 10-question trials, then verify all 60 scenes, 12 chapters and 252 cards are unlocked.
 - Exam test answers 18 of 20 correctly, checks 90%, saved mistakes and achievement, retries misses and reloads the save.
 - UI tests exercise every major screen and 390px phone layout, scan viewing, mobile navigation and confirmed/cancelled reset.
-- Additional browser flows verify all 272 Franklin questions in Everything mode, Easy recognition, timer pause/resume, flashcard flipping, collection filters and location-specific drills. Twenty-seven browser tests cover the collection, Douglass campaign, Franklin learning tools, and platformer.
+- Additional browser flows verify all 272 Franklin questions in Everything mode, Easy recognition, timer pause/resume, flashcard flipping, collection filters and location-specific drills. Thirty-three browser tests cover the collection, all Douglass campaigns, Franklin learning tools, and platformer.
 - Production tests request the PDF and every scan and refresh hash routes under both `/dual-credit-ela-iii/` and `/dual-credit-ela-iii-game/`.
 
 ## Dialogue and multiple-choice checks
@@ -75,7 +75,7 @@ Desktop and phone screenshots inspected for typography, contrast, clipping, spac
 
 ## Practical limits
 
-- Franklin and Chapters I–III use installed browser/device voices; Chapters IV–VIII have bundled synthetic recordings with browser synthesis as fallback; if speech is unavailable, text and gameplay continue. Speech engine behavior is tested with controlled callbacks, and native Windows Edge voices were separately verified to start playback.
+- Franklin and Chapters I–III use installed browser/device voices; Chapters IV–XI and Appendix have bundled synthetic recordings with browser synthesis as fallback; if speech is unavailable, text and gameplay continue. Speech engine behavior is tested with controlled callbacks, and native Windows Edge playback is verified to start.
 - Historical free-form scoring remains in the source-audit code and older saves; current questions use immediate multiple-choice scoring with no confidence prompt.
 - The location diagram is schematic, not a geographical survey.
 - Browser storage can be cleared by the browser or user. Export/import is provided.

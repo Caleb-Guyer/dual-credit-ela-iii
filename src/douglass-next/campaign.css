@@ -6,6 +6,72 @@
   font-family: Arial, Helvetica, sans-serif;
   position: relative;
 }
+.dn-rhythm {
+  width: min(540px, calc(100vw - 32px));
+  padding: 32px;
+  background: #152a32;
+  border: 1px solid #9eb8b34a;
+  border-radius: 12px;
+  text-align: center;
+  box-shadow: 0 30px 100px #0008;
+}
+.dn-rhythm h2 {
+  font: 38px Georgia;
+  margin: 12px 0;
+}
+.dn-rhythm p {
+  color: #bdccca;
+  line-height: 1.6;
+  margin: 16px 0;
+}
+.dn-beat-track {
+  position: relative;
+  height: 28px;
+  background: #0b1921;
+  border-radius: 20px;
+  overflow: hidden;
+  margin: 28px 0 18px;
+}
+.dn-beat-window {
+  position: absolute;
+  left: 54%;
+  width: 34%;
+  height: 100%;
+  background: #d4b37988;
+  border-left: 2px solid #f3dca5;
+  border-right: 2px solid #f3dca5;
+}
+.dn-beat-track b {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  width: 5px;
+  background: #fff5d5;
+  box-shadow: 0 0 18px #fff2cc;
+}
+.dn-beat-pips {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+}
+.dn-beat-pips i {
+  height: 9px;
+  width: 9px;
+  border-radius: 50%;
+  background: #4a6567;
+}
+.dn-beat-pips i.lit {
+  background: #e9c995;
+  box-shadow: 0 0 12px #e9c99566;
+}
+.dn-rhythm .dn-text-button {
+  display: block;
+  margin: 12px auto 0;
+}
+.dn-rhythm .dn-primary {
+  background: #efd3a0;
+  color: #14252b;
+}
 .dn-app button {
   border: 1px solid #ffffff24;
   background: #1c3038;

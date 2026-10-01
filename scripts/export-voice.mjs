@@ -3,7 +3,10 @@ import { createServer } from 'vite';
 import { writeFile } from 'node:fs/promises';
 const server = await createServer({ server: { middlewareMode: true } });
 try {
-  const { missions, questions } = await server.ssrLoadModule('/src/douglass-next/data.ts');
+  const next = await server.ssrLoadModule('/src/douglass-next/data.ts');
+  const final = await server.ssrLoadModule('/src/douglass-final/data.ts');
+  const missions = [...next.missions, ...final.missions],
+    questions = [...next.questions, ...final.questions];
   const key = (speaker, text) => {
     let hash = 2166136261;
     for (const char of speaker + '|' + text) {
@@ -15,9 +18,11 @@ try {
   const cast = (speaker) =>
     speaker.startsWith('Hugh')
       ? ['am_fenrir', 0.92]
-      : speaker.startsWith('An Irish')
+      : speaker.startsWith('An Irish') ||
+          speaker.startsWith('Sandy') ||
+          speaker.startsWith('Nathan')
         ? ['bm_george', 0.94]
-        : speaker.startsWith('A street')
+        : speaker.startsWith('A street') || speaker.startsWith('David')
           ? ['am_puck', 1.06]
           : speaker === 'Narrator'
             ? ['af_heart', 1.03]

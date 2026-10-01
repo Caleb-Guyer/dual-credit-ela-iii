@@ -6,7 +6,7 @@ export default function ChapterArt({ chapter }: { chapter: Chapter }) {
     6: ['#937d70', '#e9c797'],
     7: ['#718fa6', '#a9c8cf'],
     8: ['#7b7690', '#cbb9ae'],
-  }[chapter];
+  }[chapter as 4 | 5 | 6 | 7 | 8];
   return (
     <svg
       viewBox="0 0 700 460"

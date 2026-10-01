@@ -27,6 +27,7 @@ import SettingsPage from './pages/Settings';
 import CourseHub from './pages/CourseHub';
 import DouglassCampaign from './douglass/Campaign';
 const NextDouglassCampaign = lazy(() => import('./douglass-next/Campaign'));
+const FinalDouglassCampaign = lazy(() => import('./douglass-final/Campaign'));
 const nav = [
   ['home', 'Play', Feather],
   ['story', 'Story', Compass],
@@ -46,6 +47,7 @@ const routes = new Set<string>([
   'course',
   'douglass',
   'douglass-4-8',
+  'douglass-9-end',
 ]);
 export default function App() {
   const [source, setSource] = useState<number[] | null>(null);
@@ -95,13 +97,20 @@ function AppShell() {
     return () => window.removeEventListener('hashchange', handle);
   }, []);
   useEffect(() => {
-    if (route === 'course' || route === 'douglass' || route === 'douglass-4-8') {
+    if (
+      route === 'course' ||
+      route === 'douglass' ||
+      route === 'douglass-4-8' ||
+      route === 'douglass-9-end'
+    ) {
       document.title =
         route === 'course'
           ? 'Dual Credit ELA III · Choose your story'
-          : route === 'douglass-4-8'
-            ? 'Chapters 4–8 · Frederick Douglass'
-            : 'A Voice Unbroken · Frederick Douglass';
+          : route === 'douglass-9-end'
+            ? 'Chapters 9–end · Frederick Douglass'
+            : route === 'douglass-4-8'
+              ? 'Chapters 4–8 · Frederick Douglass'
+              : 'A Voice Unbroken · Frederick Douglass';
       return;
     }
     document.title =
@@ -176,7 +185,7 @@ function AppShell() {
   }
   if (route === 'course') return <CourseHub />;
   if (route === 'douglass') return <DouglassCampaign />;
-  if (route === 'douglass-4-8')
+  if (route === 'douglass-4-8' || route === 'douglass-9-end')
     return (
       <Suspense
         fallback={
@@ -185,7 +194,7 @@ function AppShell() {
           </div>
         }
       >
-        <NextDouglassCampaign />
+        {route === 'douglass-9-end' ? <FinalDouglassCampaign /> : <NextDouglassCampaign />}
       </Suspense>
     );
   if (route === 'home') return <Platformer />;

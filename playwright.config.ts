@@ -15,10 +15,21 @@ export default defineConfig({
     trace: 'retain-on-failure',
   },
   projects: [
-    { name: 'standard', testIgnore: '**/douglass-next.spec.ts' },
+    { name: 'standard', testIgnore: ['**/douglass-next.spec.ts', '**/douglass-final.spec.ts'] },
     {
       name: '3d',
       testMatch: '**/douglass-next.spec.ts',
+      use: {
+        channel: process.platform === 'win32' ? 'msedge' : 'chromium',
+        launchOptions:
+          process.env.CI || process.env.PLAYWRIGHT_SOFTWARE_GPU
+            ? { args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] }
+            : {},
+      },
+    },
+    {
+      name: 'final3d',
+      testMatch: '**/douglass-final.spec.ts',
       use: {
         channel: process.platform === 'win32' ? 'msedge' : 'chromium',
         launchOptions:

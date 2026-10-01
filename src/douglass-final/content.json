@@ -1,0 +1,1203 @@
+{
+  "missions": [
+    {
+      "id": 9,
+      "label": "Chapter 9",
+      "title": "Under the same roof",
+      "subtitle": "St. Michael’s · 1832",
+      "genre": "Survival & discovery",
+      "summary": "Search the kitchen, follow the horse, and uncover the gap between a master’s words and deeds.",
+      "color": "#e6bd77",
+      "spawn": [0, 14],
+      "yaw": 0,
+      "stages": [
+        {
+          "title": "Search for three food supplies",
+          "action": "Listen",
+          "at": [0, 5],
+          "scene": "kitchen",
+          "object": "cabin",
+          "lines": [
+            {
+              "speaker": "Frederick Douglass · retold",
+              "text": "Back in St. Michael’s, Thomas Auld kept us hungry. My sister Eliza, my aunt Priscilla, Henny, and I shared the kitchen. Food spoiled in storage while we went without.",
+              "refs": ["9.1"],
+              "exact": false
+            },
+            {
+              "speaker": "Frederick Douglass · retold",
+              "text": "Walk the kitchen and find the supplies. This search represents our struggle for food; the food locations are a game illustration.",
+              "refs": ["9.1"],
+              "exact": false
+            }
+          ],
+          "collect": {
+            "label": "Food supplies",
+            "points": [
+              [-5, 10],
+              [5, 8],
+              [-5, 2]
+            ]
+          }
+        },
+        {
+          "title": "Meet Thomas by the meeting house",
+          "action": "Listen",
+          "at": [-5, -5],
+          "scene": "kitchen",
+          "object": "person",
+          "lines": [
+            {
+              "speaker": "Frederick Douglass · retold",
+              "text": "Thomas attended a Methodist camp meeting in August 1832. I hoped religion would make him kinder. Instead, he became crueler and used scripture to defend abuse.",
+              "refs": ["9.2", "9.4"],
+              "exact": false
+            },
+            {
+              "speaker": "Frederick Douglass · retold",
+              "text": "He fed visiting preachers while we stayed hungry. Cookman showed sympathy. Wilson’s reading school was broken up after only three meetings.",
+              "refs": ["9.2", "9.3"],
+              "exact": false
+            }
+          ],
+          "task": [
+            {
+              "title": "Words and deeds",
+              "instruction": "What changes after Thomas’s conversion?",
+              "choices": [
+                "His treatment becomes crueler.",
+                "He frees everyone in the kitchen.",
+                "He lets the reading school continue."
+              ],
+              "answer": 0,
+              "why": "Douglass’s hope for kindness is disappointed. Religious profession does not change Thomas’s cruelty."
+            }
+          ]
+        },
+        {
+          "title": "Follow the horse’s trail",
+          "action": "Listen",
+          "at": [5, -15],
+          "scene": "farm",
+          "object": "gate",
+          "lines": [
+            {
+              "speaker": "Frederick Douglass · retold",
+              "text": "I let Thomas’s horse run away, so I could fetch it from William Hamilton’s farm. Hamilton gave people enough to eat. Getting food drove my decision.",
+              "refs": ["9.6"],
+              "exact": false
+            }
+          ],
+          "collect": {
+            "label": "Horse tracks",
+            "points": [
+              [-3, 0],
+              [3, -5],
+              [5, -10]
+            ]
+          }
+        },
+        {
+          "title": "Leave for Covey’s farm",
+          "action": "Listen",
+          "at": [0, -23],
+          "scene": "farm",
+          "object": "gate",
+          "lines": [
+            {
+              "speaker": "Frederick Douglass · retold",
+              "text": "Thomas sent me to Edward Covey for a year. Covey was known for breaking young enslaved people. That reputation let him get cheap labor.",
+              "refs": ["9.6"],
+              "exact": false
+            },
+            {
+              "speaker": "Frederick Douglass · retold",
+              "text": "I dreaded his cruelty, but was glad I would at least get enough to eat. Hunger had narrowed my choices.",
+              "refs": ["9.6"],
+              "exact": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "label": "Chapter 10",
+      "title": "A voice unbroken",
+      "subtitle": "1833–1835 and the return to Baltimore",
+      "genre": "Work, resistance & solidarity",
+      "summary": "Work the farm, stand your ground, teach a hidden class, plan together, and learn a trade in Baltimore.",
+      "color": "#95c5a6",
+      "spawn": [0, 14],
+      "yaw": 0,
+      "stages": [
+        {
+          "title": "Gather the wood for the cart",
+          "action": "Listen",
+          "at": [0, 5],
+          "scene": "farm",
+          "object": "timber",
+          "lines": [
+            {
+              "speaker": "Frederick Douglass · retold",
+              "text": "On January first, 1833, I began work for Covey. I had never worked as a field hand. He sent me to fetch wood with unbroken oxen. The cart overturned; later the oxen smashed through a gate.",
+              "refs": ["10.1"],
+              "exact": false
+            },
+            {
+              "speaker": "Frederick Douglass · retold",
+              "text": "Covey punished me instead of teaching me. His constant work and surprise surveillance wore down my body and hope. We called his sneaking manner the snake.",
+              "refs": ["10.1", "10.2", "10.3", "10.5"],
+              "exact": false
+            }
+          ],
+          "collect": {
+            "label": "Wood bundles",
+            "points": [
+              [-5, 11],
+              [5, 9],
+              [-5, 1]
+            ]
+          }
+        },
+        {
+          "title": "Look toward the Chesapeake",
+          "action": "Listen",
+          "at": [5, -5],
+          "scene": "shore",
+          "object": "ship",
+          "lines": [
+            {
+              "speaker": "Frederick Douglass · retold",
+              "text": "White sails moved freely across the Chesapeake. I spoke to those ships as I thought about my own captivity. My longing for freedom survived, even when I felt broken.",
+              "refs": ["10.7", "10.8", "10.9"],
+              "exact": false
+            },
+            {
+              "speaker": "Frederick Douglass · retold",
+              "text": "Covey’s religion did not make him just. He treated Caroline’s children as increased wealth. I describe cruelty reaching into work, family, and faith.",
+              "refs": ["10.4"],
+              "exact": false
+            }
+          ]
+        },
+        {
+          "title": "Reach the woods after the collapse",
+          "action": "Listen",
+          "at": [-5, -15],
+          "scene": "woods",
+          "object": "person",
+          "lines": [
+            {
+              "speaker": "Frederick Douglass · retold",
+              "text": "I collapsed in the summer heat while fanning wheat. Covey attacked me. I walked seven miles to ask Thomas for protection, but he ordered me back.",
+              "refs": ["10.10", "10.11"],
+              "exact": false
+            },
+            {
+              "speaker": "Sandy Jenkins · retold",
+              "text": "I offered shelter and a root. I believed that carrying it on the right side would prevent a whipping. Frederick doubted me. The story reports my belief; it does not prove magic.",
+              "refs": ["10.11", "10.23"],
+              "exact": false
+            }
+          ]
+        },
+        {
+          "title": "Hold your ground in the stable",
+          "action": "Listen",
+          "at": [0, -23],
+          "scene": "stable",
+          "object": "gate",
+          "lines": [
+            {
+              "speaker": "Frederick Douglass · retold",
+              "text": "On Monday, Covey tried to tie me in the stable. I resisted. Hughes tried to help him, while Bill refused to help with the whipping. The struggle lasted nearly two hours.",
+              "refs": ["10.11"],
+              "exact": false
+            },
+            {
+              "speaker": "Frederick Douglass · retold",
+              "text": "Covey never whipped me again. The struggle restored confidence and my resolve to be free. It did not end my enslavement.",
+              "refs": ["10.11", "10.12", "10.13"],
+              "exact": false
+            }
+          ],
+          "rhythm": {
+            "title": "Stand your ground",
+            "verb": "Hold",
+            "caption": "Hit the marked window four times. This timing challenge symbolizes resistance; it does not reenact the violence."
+          }
+        },
+        {
+          "title": "Open the hidden school",
+          "action": "Listen",
+          "at": [0, -12],
+          "scene": "school",
+          "object": "desk",
+          "lines": [
+            {
+              "speaker": "Frederick Douglass · retold",
+              "text": "After Covey, I worked for William Freeland. He gave enough food, proper meal time, and better tools. Still, I wanted to be my own master.",
+              "refs": ["10.19", "10.21", "10.26"],
+              "exact": false
+            },
+            {
+              "speaker": "Frederick Douglass · retold",
+              "text": "I taught Henry and John Harris and others to read. More than forty learners came to the Sabbath school. We risked punishment because knowledge mattered to us.",
+              "refs": ["10.22", "10.24", "10.25"],
+              "exact": false
+            }
+          ],
+          "rhythm": {
+            "title": "Keep the lesson alive",
+            "verb": "Teach",
+            "caption": "Follow the chalk rhythm. Four successful beats complete the lesson."
+          }
+        },
+        {
+          "title": "Gather the plan by the canoe",
+          "action": "Listen",
+          "at": [-5, -3],
+          "scene": "shore",
+          "object": "ship",
+          "lines": [
+            {
+              "speaker": "Frederick Douglass · retold",
+              "text": "With Henry and John Harris, my uncle Henry Bailey, and Charles Roberts, I planned to travel up the Chesapeake by canoe, then follow the North Star beyond Maryland. Sandy withdrew from the attempt.",
+              "refs": ["10.30", "10.31"],
+              "exact": false
+            },
+            {
+              "speaker": "Frederick Douglass · retold",
+              "text": "I wrote passes using William Hamilton’s name. Baltimore was a cover story for the Easter holiday. We wanted freedom and trusted each other.",
+              "refs": ["10.32", "10.33", "10.34", "10.35", "10.36"],
+              "exact": false
+            }
+          ],
+          "task": [
+            {
+              "title": "Build the plan",
+              "instruction": "Which is the group’s actual plan?",
+              "choices": [
+                "Canoe up the bay, then travel north beyond Maryland.",
+                "Earn freedom by working for Covey.",
+                "Settle permanently in Baltimore using the passes."
+              ],
+              "answer": 0,
+              "why": "Baltimore is written on the passes to disguise their real northward intention."
+            }
+          ]
+        },
+        {
+          "title": "Face the failed attempt",
+          "action": "Listen",
+          "at": [5, 6],
+          "scene": "jail",
+          "object": "gate",
+          "lines": [
+            {
+              "speaker": "Frederick Douglass · retold",
+              "text": "We were arrested before leaving. I burned my pass. Henry ate his with a biscuit. We denied the plan and held together, but were taken to Easton jail.",
+              "refs": ["10.37", "10.38", "10.39", "10.40", "10.41"],
+              "exact": false
+            },
+            {
+              "speaker": "Frederick Douglass · retold",
+              "text": "The others were taken home; I was left alone. Separation hurt most. Thomas eventually sent me back to Hugh in Baltimore, rather than sending me to Alabama.",
+              "refs": ["10.42", "10.43", "10.44", "10.45"],
+              "exact": false
+            }
+          ]
+        },
+        {
+          "title": "Deliver the shipyard tools",
+          "action": "Listen",
+          "at": [0, 14],
+          "scene": "shipyard",
+          "object": "timber",
+          "lines": [
+            {
+              "speaker": "Frederick Douglass · retold",
+              "text": "At William Gardner’s shipyard I faced constant conflicting orders. Four white apprentices attacked me. No white witness would testify, so the law gave me no protection.",
+              "refs": ["10.46", "10.47", "10.48"],
+              "exact": false
+            },
+            {
+              "speaker": "Frederick Douglass · retold",
+              "text": "Hugh moved me to Walter Price’s yard. I learned to caulk with mallet and irons and earned skilled wages. But every Saturday Hugh took every cent. Better conditions sharpened my desire for freedom.",
+              "refs": ["10.49", "10.50"],
+              "exact": false
+            }
+          ],
+          "collect": {
+            "label": "Shipyard tools",
+            "points": [
+              [-6, 3],
+              [5, 7],
+              [-5, 12]
+            ]
+          },
+          "rhythm": {
+            "title": "Seal the seam",
+            "verb": "Strike",
+            "caption": "Time four mallet strokes to the gold window."
+          }
+        }
+      ]
+    },
+    {
+      "id": 11,
+      "label": "Chapter 11",
+      "title": "My own name",
+      "subtitle": "1838–1841 · New York to New Bedford",
+      "genre": "Safe haven, harbor work & a public voice",
+      "summary": "Find allies, make a home, earn wages for yourself, and step forward to speak.",
+      "color": "#91c4e0",
+      "spawn": [0, 14],
+      "yaw": 0,
+      "stages": [
+        {
+          "title": "Reach the end of the old contract",
+          "action": "Listen",
+          "at": [0, 5],
+          "scene": "shipyard",
+          "object": "gate",
+          "lines": [
+            {
+              "speaker": "Frederick Douglass · retold",
+              "text": "Hugh let me hire my own time, but I had to pay him three dollars every week and meet my own expenses. When I returned late from a camp meeting, he took that arrangement away.",
+              "refs": ["11.3", "11.4"],
+              "exact": false
+            },
+            {
+              "speaker": "Frederick Douglass · retold",
+              "text": "On September third, 1838, I reached New York, free from the immediate grasp of slavery. I do not reveal the route or helpers. Naming them could endanger others.",
+              "refs": ["11.1", "11.2", "11.5"],
+              "exact": false
+            }
+          ],
+          "task": [
+            {
+              "title": "Respect the silence",
+              "instruction": "Why is the escape route missing from the Narrative?",
+              "choices": [
+                "To protect helpers and future fugitives.",
+                "Because Douglass never reached New York.",
+                "Because Ruggles forbade him to write any book."
+              ],
+              "answer": 0,
+              "why": "He deliberately withholds details that could teach enslavers how to intercept escaping people."
+            }
+          ]
+        },
+        {
+          "title": "Find Ruggles’s safe house",
+          "action": "Listen",
+          "at": [-5, -5],
+          "scene": "newyork",
+          "object": "person",
+          "lines": [
+            {
+              "speaker": "David Ruggles · retold",
+              "text": "Frederick was alone and afraid of kidnapping. I gave him shelter and recommended New Bedford. With his caulking skills, he might find work there.",
+              "refs": ["11.6", "11.7", "11.8"],
+              "exact": false
+            },
+            {
+              "speaker": "Frederick Douglass · retold",
+              "text": "Anna Murray, already free, joined me. Reverend James Pennington married us on September fifteenth. Ruggles gave us five dollars and an introduction for the journey.",
+              "refs": ["11.8", "11.9", "11.10", "11.11", "11.12", "11.13"],
+              "exact": false
+            }
+          ]
+        },
+        {
+          "title": "Meet Nathan Johnson",
+          "action": "Listen",
+          "at": [5, -15],
+          "scene": "newbedford",
+          "object": "person",
+          "lines": [
+            {
+              "speaker": "Frederick Douglass · retold",
+              "text": "In New Bedford, Nathan and Mrs. Johnson welcomed us. Nathan paid the stage fare so our baggage could be released. Their help made a new beginning possible.",
+              "refs": ["11.13", "11.14"],
+              "exact": false
+            },
+            {
+              "speaker": "Nathan Johnson · retold",
+              "text": "There were many Johnsons in New Bedford. I had been reading The Lady of the Lake, and suggested Douglass. Frederick kept his first name to preserve his identity.",
+              "refs": ["11.15"],
+              "exact": false
+            }
+          ],
+          "task": [
+            {
+              "title": "A name of my own",
+              "instruction": "Who suggested the name Douglass?",
+              "choices": ["Nathan Johnson.", "Edward Covey.", "Thomas Auld."],
+              "answer": 0,
+              "why": "Nathan Johnson suggested Douglass, inspired by The Lady of the Lake."
+            }
+          ]
+        },
+        {
+          "title": "Carry the oil cargo to the wharf",
+          "action": "Listen",
+          "at": [0, -23],
+          "scene": "newbedford",
+          "object": "timber",
+          "lines": [
+            {
+              "speaker": "Frederick Douglass · retold",
+              "text": "New Bedford’s wealth challenged the idea that prosperity needed slavery. Working people had dignity, and the Black community protected one another.",
+              "refs": ["11.16", "11.17", "11.18"],
+              "exact": false
+            },
+            {
+              "speaker": "Frederick Douglass · retold",
+              "text": "On my third day I loaded a sloop with oil. For the first time, earnings belonged to me and supported Anna and me. Racial prejudice still kept me from working as a caulker.",
+              "refs": ["11.19", "11.20"],
+              "exact": false
+            }
+          ],
+          "collect": {
+            "label": "Oil cargo",
+            "points": [
+              [-5, -9],
+              [5, -13],
+              [-5, -19]
+            ]
+          }
+        },
+        {
+          "title": "Read the paper by the harbor",
+          "action": "Listen",
+          "at": [0, -12],
+          "scene": "newbedford",
+          "object": "desk",
+          "lines": [
+            {
+              "speaker": "Frederick Douglass · retold",
+              "text": "I sawed wood, shoveled coal, cleaned chimneys, and moved oil casks. Nathan lent me a saw and a wood-horse. Free life required work, not dependence on an enslaver.",
+              "refs": ["11.19"],
+              "exact": false
+            },
+            {
+              "speaker": "Frederick Douglass · retold",
+              "text": "About four months after arriving, I subscribed to The Liberator. Its anti-slavery message inspired me, and I attended meetings whenever I could.",
+              "refs": ["11.21"],
+              "exact": false
+            }
+          ],
+          "rhythm": {
+            "title": "Make the work your own",
+            "verb": "Saw",
+            "caption": "Keep four strokes in time. Your work now supports your own household."
+          }
+        },
+        {
+          "title": "Step forward at Nantucket",
+          "action": "Listen",
+          "at": [-5, -3],
+          "scene": "meeting",
+          "object": "desk",
+          "lines": [
+            {
+              "speaker": "Frederick Douglass · retold",
+              "text": "At an anti-slavery convention in Nantucket on August eleventh, 1841, William C. Coffin urged me to speak. I hesitated before a white audience, then began to find my voice.",
+              "refs": ["11.22"],
+              "exact": false
+            },
+            {
+              "speaker": "Frederick Douglass · retold",
+              "text": "From that time until now, I have spoken for the cause of my brethren. The Narrative ends this journey with public advocacy, not the end of my life.",
+              "refs": ["11.22"],
+              "exact": false
+            }
+          ],
+          "rhythm": {
+            "title": "Take the floor",
+            "verb": "Speak",
+            "caption": "Meet the four cues. Build momentum and finish your first address."
+          }
+        }
+      ]
+    },
+    {
+      "id": 12,
+      "label": "Appendix",
+      "title": "Truth, love, justice",
+      "subtitle": "The closing argument · 1845",
+      "genre": "An argument brought to light",
+      "summary": "Expose the contradiction between belief and behavior, then carry Douglass’s closing pledge forward.",
+      "color": "#d8b6e7",
+      "spawn": [0, 14],
+      "yaw": 0,
+      "stages": [
+        {
+          "title": "Listen beyond the church bell",
+          "action": "Listen",
+          "at": [0, 5],
+          "scene": "appendix",
+          "object": "lantern",
+          "lines": [
+            {
+              "speaker": "Frederick Douglass · retold",
+              "text": "I am not condemning every religion. I distinguish the Christianity of Christ from the slaveholding religion of America. I love a pure, peaceable, impartial faith.",
+              "refs": ["12.1"],
+              "exact": false
+            },
+            {
+              "speaker": "Frederick Douglass · retold",
+              "text": "Someone who praises family while selling families apart contradicts that faith. The same is true of demanding Bible reading while denying people literacy.",
+              "refs": ["12.1"],
+              "exact": false
+            }
+          ],
+          "task": [
+            {
+              "title": "Separate the claim",
+              "instruction": "What is Douglass rejecting?",
+              "choices": [
+                "Slaveholding religion and its hypocrisy.",
+                "All religion without distinction.",
+                "Reading the Bible."
+              ],
+              "answer": 0,
+              "why": "He explicitly distinguishes Christianity proper from religious institutions that support slavery."
+            }
+          ]
+        },
+        {
+          "title": "Bring the contradictions into the light",
+          "action": "Listen",
+          "at": [-5, -5],
+          "scene": "appendix",
+          "object": "desk",
+          "lines": [
+            {
+              "speaker": "Frederick Douglass · retold",
+              "text": "I describe slave trading and church institutions supporting each other. Outward rituals cannot excuse neglecting justice, mercy, and faith. My criticism includes complicit churches north and south.",
+              "refs": ["12.1", "12.2", "12.3", "12.4", "12.5"],
+              "exact": false
+            },
+            {
+              "speaker": "Frederick Douglass · retold",
+              "text": "I copy a parody attributed to a northern Methodist preacher. It sets pious words beside cruel deeds, exposing their contradiction through satire.",
+              "refs": ["12.6", "12.7", "12.8"],
+              "exact": false
+            }
+          ],
+          "task": [
+            {
+              "title": "Hear the irony",
+              "instruction": "Why does the parody repeat heavenly union?",
+              "choices": [
+                "To expose the hypocrisy of piety joined to cruelty.",
+                "To praise slaveholders for consistent kindness.",
+                "To describe the successful escape route."
+              ],
+              "answer": 0,
+              "why": "The praise is ironic: the repeated phrase clashes with kidnapping, theft, and abuse."
+            }
+          ],
+          "collect": {
+            "label": "Argument fragments",
+            "points": [
+              [-5, 11],
+              [5, 7],
+              [-5, 0]
+            ]
+          }
+        },
+        {
+          "title": "Carry the final pledge",
+          "action": "Listen",
+          "at": [5, -15],
+          "scene": "appendix",
+          "object": "lantern",
+          "lines": [
+            {
+              "speaker": "Frederick Douglass · retold",
+              "text": "I hope this book throws light on slavery and hastens deliverance. I rely on truth, love, and justice, and pledge myself anew to the cause.",
+              "refs": ["12.9"],
+              "exact": false
+            },
+            {
+              "speaker": "Frederick Douglass · retold",
+              "text": "Frederick Douglass signs this closing statement in Lynn, Massachusetts, on April twenty-eighth, 1845. His story asks us to see clearly and judge words by actions.",
+              "refs": ["12.9", "12.10", "12.11", "12.12"],
+              "exact": false
+            }
+          ],
+          "rhythm": {
+            "title": "A voice carried forward",
+            "verb": "Affirm",
+            "caption": "Finish four beats to carry the closing pledge into the light."
+          }
+        }
+      ]
+    }
+  ],
+  "questions": [
+    {
+      "id": "df-9-1",
+      "chapter": 9,
+      "prompt": "What dominates Douglass’s experience under Thomas Auld?",
+      "choices": [
+        "Hunger despite food in storage.",
+        "Freedom to choose employment.",
+        "Comfort and plentiful food.",
+        "A paid apprenticeship."
+      ],
+      "answer": 0,
+      "explanation": "Food spoiled in storage while the enslaved kitchen workers went hungry.",
+      "refs": ["9.1"]
+    },
+    {
+      "id": "df-9-2",
+      "chapter": 9,
+      "prompt": "Which two relatives share the kitchen with Douglass?",
+      "choices": [
+        "Eliza, his sister, and Priscilla, his aunt.",
+        "Anna, his wife, and Nathan, his uncle.",
+        "Sophia, his sister, and Henny, his mother.",
+        "Henry and John, his brothers."
+      ],
+      "answer": 0,
+      "explanation": "He names Eliza and Priscilla, along with Henny and himself.",
+      "refs": ["9.1"]
+    },
+    {
+      "id": "df-9-3",
+      "chapter": 9,
+      "prompt": "How does Thomas’s conversion affect his behavior?",
+      "choices": [
+        "He becomes crueler and uses scripture to justify it.",
+        "He frees Douglass.",
+        "He welcomes Wilson’s school.",
+        "He gives everyone their wages."
+      ],
+      "answer": 0,
+      "explanation": "Douglass hoped for kindness; Thomas instead became more cruel.",
+      "refs": ["9.2", "9.4"]
+    },
+    {
+      "id": "df-9-4",
+      "chapter": 9,
+      "prompt": "Which preacher shows sympathy toward enslaved people?",
+      "choices": ["Cookman.", "Rigby Hopkins.", "Thomas Auld.", "Edward Covey."],
+      "answer": 0,
+      "explanation": "Cookman’s sympathy gave enslaved people hope; Douglass distinguishes him from other visitors.",
+      "refs": ["9.2"]
+    },
+    {
+      "id": "df-9-5",
+      "chapter": 9,
+      "prompt": "What happens to Wilson’s reading school?",
+      "choices": [
+        "It is broken up after three meetings.",
+        "It becomes a paid trade school.",
+        "It moves to Nantucket.",
+        "It frees all its students."
+      ],
+      "answer": 0,
+      "explanation": "West, Fairbanks, and others forcibly break up the school.",
+      "refs": ["9.3"]
+    },
+    {
+      "id": "df-9-6",
+      "chapter": 9,
+      "prompt": "Why does Douglass let the horse run to Hamilton’s farm?",
+      "choices": [
+        "He can retrieve it and get food there.",
+        "He wants to sell the horse in New York.",
+        "He is delivering The Liberator.",
+        "He has permission to escape by canoe."
+      ],
+      "answer": 0,
+      "explanation": "Hamilton gave enslaved people enough food; the horse gave Douglass a reason to visit.",
+      "refs": ["9.6"]
+    },
+    {
+      "id": "df-9-7",
+      "chapter": 9,
+      "prompt": "Why is Covey able to obtain cheap labor?",
+      "choices": [
+        "His reputation for breaking young enslaved people.",
+        "He pays the highest caulking wages.",
+        "He offers legal freedom after a year.",
+        "He runs an anti-slavery school."
+      ],
+      "answer": 0,
+      "explanation": "Enslavers value his reputation for enforcing submission.",
+      "refs": ["9.6"]
+    },
+    {
+      "id": "df-9-8",
+      "chapter": 9,
+      "prompt": "Why is Douglass partly glad to leave for Covey?",
+      "choices": [
+        "He expects enough food.",
+        "He expects immediate emancipation.",
+        "He will reunite with Anna.",
+        "He will receive his own wages."
+      ],
+      "answer": 0,
+      "explanation": "Hunger makes sufficient food a powerful attraction despite Covey’s cruelty.",
+      "refs": ["9.6"]
+    },
+    {
+      "id": "df-9-9",
+      "chapter": 9,
+      "prompt": "What does Thomas’s treatment of Henny expose?",
+      "choices": [
+        "Cruelty toward a disabled enslaved woman.",
+        "A fair system of retirement.",
+        "Kindness brought about by conversion.",
+        "Equal protection by the courts."
+      ],
+      "answer": 0,
+      "explanation": "Henny’s hands were injured by childhood burns; Thomas abused and ultimately abandoned her.",
+      "refs": ["9.4", "9.5"]
+    },
+    {
+      "id": "df-9-10",
+      "chapter": 9,
+      "prompt": "Where does Chapter IX chiefly take place?",
+      "choices": ["St. Michael’s.", "New Bedford.", "Nantucket.", "New York."],
+      "answer": 0,
+      "explanation": "Douglass returns from Baltimore to Thomas Auld at St. Michael’s in March 1832.",
+      "refs": ["9.1"]
+    },
+    {
+      "id": "df-10-1",
+      "chapter": 10,
+      "prompt": "What goes wrong on Douglass’s first wood-gathering trip for Covey?",
+      "choices": [
+        "Unbroken oxen overturn the cart and later wreck a gate.",
+        "He arrives safely in Pennsylvania.",
+        "He loses his caulking wages.",
+        "His printing press breaks."
+      ],
+      "answer": 0,
+      "explanation": "He has no field experience and struggles to control the untrained oxen.",
+      "refs": ["10.1"]
+    },
+    {
+      "id": "df-10-2",
+      "chapter": 10,
+      "prompt": "Why do workers call Covey the snake?",
+      "choices": [
+        "He sneaks up and spies on them.",
+        "He protects them from danger.",
+        "He trades in reptiles.",
+        "He sails secretly to New York."
+      ],
+      "answer": 0,
+      "explanation": "Covey hides, crawls through fields, and pretends to leave to catch workers by surprise.",
+      "refs": ["10.3"]
+    },
+    {
+      "id": "df-10-3",
+      "chapter": 10,
+      "prompt": "What do the white sails on the Chesapeake represent to Douglass?",
+      "choices": [
+        "Freedom contrasted with his captivity.",
+        "His ownership of a ship.",
+        "A completed escape to New York.",
+        "Covey’s kindness."
+      ],
+      "answer": 0,
+      "explanation": "His address to the ships expresses longing and renewed determination.",
+      "refs": ["10.7", "10.8", "10.9"]
+    },
+    {
+      "id": "df-10-4",
+      "chapter": 10,
+      "prompt": "What does Thomas do when Douglass asks for protection from Covey?",
+      "choices": [
+        "Orders him back to Covey.",
+        "Frees him at once.",
+        "Sends him directly to Ruggles.",
+        "Pays him his wages."
+      ],
+      "answer": 0,
+      "explanation": "After the heat collapse and attack, Douglass walks seven miles seeking help, but Thomas refuses it.",
+      "refs": ["10.10", "10.11"]
+    },
+    {
+      "id": "df-10-5",
+      "chapter": 10,
+      "prompt": "How should Sandy’s root be understood?",
+      "choices": [
+        "A belief Sandy presents, which Douglass initially doubts.",
+        "Verified supernatural protection.",
+        "A legal pass to Pennsylvania.",
+        "A tool used for caulking."
+      ],
+      "answer": 0,
+      "explanation": "The account reports Sandy’s belief; it does not establish magic as fact.",
+      "refs": ["10.11", "10.23"]
+    },
+    {
+      "id": "df-10-6",
+      "chapter": 10,
+      "prompt": "What is the main consequence of resisting Covey?",
+      "choices": [
+        "Restored confidence and no further whippings from Covey.",
+        "Immediate legal freedom.",
+        "Ownership of Covey’s farm.",
+        "A successful canoe escape that day."
+      ],
+      "answer": 0,
+      "explanation": "The struggle restores Douglass’s spirit while he remains enslaved.",
+      "refs": ["10.11", "10.12", "10.13"]
+    },
+    {
+      "id": "df-10-7",
+      "chapter": 10,
+      "prompt": "Who refuses to help Covey whip Douglass?",
+      "choices": ["Bill.", "Hughes.", "Thomas.", "Rigby Hopkins."],
+      "answer": 0,
+      "explanation": "Bill says he was hired to work, not to help whip Douglass; Hughes does try to help Covey.",
+      "refs": ["10.11"]
+    },
+    {
+      "id": "df-10-8",
+      "chapter": 10,
+      "prompt": "Why does Douglass criticize the holiday drinking encouraged by enslavers?",
+      "choices": [
+        "It makes false freedom look like drunkenness and discourages resistance.",
+        "It teaches reading.",
+        "It gives legal equality.",
+        "It proves enslavement is voluntary."
+      ],
+      "answer": 0,
+      "explanation": "He describes holidays as a safety valve that redirects resistance and disgusts people with a distorted idea of freedom.",
+      "refs": ["10.15", "10.16", "10.17", "10.18"]
+    },
+    {
+      "id": "df-10-9",
+      "chapter": 10,
+      "prompt": "How does Freeland differ from Covey?",
+      "choices": [
+        "Better food, tools, meal time, and more straightforward behavior.",
+        "He automatically frees every worker.",
+        "He secretly follows workers through fields.",
+        "He pays all wages to Douglass."
+      ],
+      "answer": 0,
+      "explanation": "Douglass prefers Freeland’s conditions but still wants to be his own master.",
+      "refs": ["10.19", "10.21", "10.26"]
+    },
+    {
+      "id": "df-10-10",
+      "chapter": 10,
+      "prompt": "What is Douglass’s central role at the Sabbath school?",
+      "choices": [
+        "Teaching enslaved people to read.",
+        "Training constables.",
+        "Selling religious books for Thomas.",
+        "Teaching Covey to caulk."
+      ],
+      "answer": 0,
+      "explanation": "Henry and John Harris and more than forty learners join the school despite danger.",
+      "refs": ["10.22", "10.24", "10.25"]
+    },
+    {
+      "id": "df-10-11",
+      "chapter": 10,
+      "prompt": "Which description matches the planned group escape?",
+      "choices": [
+        "Canoe up the Chesapeake, then follow the North Star beyond Maryland.",
+        "Ride straight to New York on a disclosed train route.",
+        "Remain in Baltimore permanently.",
+        "Sail to Alabama to find Hugh."
+      ],
+      "answer": 0,
+      "explanation": "The group planned to reach the head of the bay and travel north; Baltimore was their cover story.",
+      "refs": ["10.30", "10.31", "10.35"]
+    },
+    {
+      "id": "df-10-12",
+      "chapter": 10,
+      "prompt": "Why are passes made in William Hamilton’s name?",
+      "choices": [
+        "To disguise their escape as a permitted Easter visit to Baltimore.",
+        "To prove they had already been freed.",
+        "To enter a caulking union in New Bedford.",
+        "To get into the Nantucket convention."
+      ],
+      "answer": 0,
+      "explanation": "Douglass writes the protections to reduce suspicion if questioned.",
+      "refs": ["10.32", "10.33", "10.34", "10.35"]
+    },
+    {
+      "id": "df-10-13",
+      "chapter": 10,
+      "prompt": "What happens before the group can depart?",
+      "choices": [
+        "They are arrested and taken to Easton jail.",
+        "They reach freedom together.",
+        "Ruggles supplies five dollars.",
+        "Nathan changes Douglass’s name."
+      ],
+      "answer": 0,
+      "explanation": "Constables seize them on the morning of their planned departure.",
+      "refs": ["10.37", "10.38", "10.41"]
+    },
+    {
+      "id": "df-10-14",
+      "chapter": 10,
+      "prompt": "What hurts Douglass most when the others leave jail?",
+      "choices": [
+        "Separation from his companions.",
+        "Losing a newspaper subscription.",
+        "Being denied a stage fare.",
+        "Having to stop a paid lecture."
+      ],
+      "answer": 0,
+      "explanation": "Their solidarity mattered deeply; he dreaded separation more than almost anything.",
+      "refs": ["10.41", "10.43", "10.44"]
+    },
+    {
+      "id": "df-10-15",
+      "chapter": 10,
+      "prompt": "Why is there no legal redress for the shipyard attack?",
+      "choices": [
+        "No white witness will testify, and his testimony is not accepted.",
+        "All four attackers have escaped to Canada.",
+        "Hugh refuses to ask for help.",
+        "Douglass declines to tell anyone."
+      ],
+      "answer": 0,
+      "explanation": "Hugh seeks help from Watson, who will not issue a warrant without white testimony.",
+      "refs": ["10.47", "10.48"]
+    },
+    {
+      "id": "df-10-16",
+      "chapter": 10,
+      "prompt": "What contradiction ends Chapter X?",
+      "choices": [
+        "Douglass earns his wages but Hugh takes every cent.",
+        "Covey pays Douglass for resisting him.",
+        "Nathan takes Douglass’s first free earnings.",
+        "Freeland owns The Liberator."
+      ],
+      "answer": 0,
+      "explanation": "Douglass contracts, works, and collects the money, but coercion makes him surrender it to Hugh.",
+      "refs": ["10.49", "10.50"]
+    },
+    {
+      "id": "df-11-1",
+      "chapter": 11,
+      "prompt": "Why does Douglass conceal the means of his successful escape?",
+      "choices": [
+        "To protect helpers and future fugitives.",
+        "Because he has not escaped.",
+        "Because his book is a novel.",
+        "To hide his marriage from Anna."
+      ],
+      "answer": 0,
+      "explanation": "Publishing the methods could give enslavers information to stop other people.",
+      "refs": ["11.1", "11.2", "11.5"]
+    },
+    {
+      "id": "df-11-2",
+      "chapter": 11,
+      "prompt": "When does he reach New York after escaping?",
+      "choices": ["September 3, 1838.", "January 1, 1833.", "August 11, 1841.", "April 28, 1845."],
+      "answer": 0,
+      "explanation": "He reports the date and destination but deliberately withholds the route.",
+      "refs": ["11.5"]
+    },
+    {
+      "id": "df-11-3",
+      "chapter": 11,
+      "prompt": "Why does joy in New York give way to anxiety?",
+      "choices": [
+        "He is isolated and fears kidnapping.",
+        "He wants to return to Covey.",
+        "He has become a wealthy shipowner.",
+        "He has lost his position as overseer."
+      ],
+      "answer": 0,
+      "explanation": "Legal and personal insecurity make apparent freedom frightening without support.",
+      "refs": ["11.6"]
+    },
+    {
+      "id": "df-11-4",
+      "chapter": 11,
+      "prompt": "Who provides shelter and recommends New Bedford?",
+      "choices": ["David Ruggles.", "William Gardner.", "Edward Covey.", "Thomas Auld."],
+      "answer": 0,
+      "explanation": "Ruggles shelters him and suggests a place where his caulking skills might provide work.",
+      "refs": ["11.7", "11.8"]
+    },
+    {
+      "id": "df-11-5",
+      "chapter": 11,
+      "prompt": "Which statement about Anna Murray is correct?",
+      "choices": [
+        "She is already free when she joins and marries Douglass.",
+        "She is Thomas Auld’s daughter.",
+        "She is an enslaved member of the canoe group.",
+        "She gives Covey the root."
+      ],
+      "answer": 0,
+      "explanation": "Anna joins him in New York; Pennington marries them on September 15, 1838.",
+      "refs": ["11.8", "11.9", "11.10", "11.11", "11.12"]
+    },
+    {
+      "id": "df-11-6",
+      "chapter": 11,
+      "prompt": "Who helps them begin life in New Bedford and suggests Douglass?",
+      "choices": ["Nathan Johnson.", "William C. Coffin.", "Henry Harris.", "Esquire Watson."],
+      "answer": 0,
+      "explanation": "Nathan pays their stage fares and proposes a name inspired by The Lady of the Lake.",
+      "refs": ["11.14", "11.15"]
+    },
+    {
+      "id": "df-11-7",
+      "chapter": 11,
+      "prompt": "What surprises Douglass about New Bedford?",
+      "choices": [
+        "Prosperity exists without slavery.",
+        "Everyone is a slaveholder.",
+        "No one works at the harbor.",
+        "Hugh owns every ship."
+      ],
+      "answer": 0,
+      "explanation": "Its wealth challenges the claim that slavery is necessary to prosperity.",
+      "refs": ["11.16", "11.17"]
+    },
+    {
+      "id": "df-11-8",
+      "chapter": 11,
+      "prompt": "Why is his first paid work in New Bedford significant?",
+      "choices": [
+        "The earnings belong to him and support his household.",
+        "He must hand all earnings to Hugh.",
+        "It frees the canoe group.",
+        "It makes him a slave trader."
+      ],
+      "answer": 0,
+      "explanation": "Loading oil brings earnings that no enslaver can claim, though discrimination still blocks caulking work.",
+      "refs": ["11.19", "11.20"]
+    },
+    {
+      "id": "df-11-9",
+      "chapter": 11,
+      "prompt": "What publication inspires his anti-slavery activity?",
+      "choices": [
+        "The Liberator.",
+        "The Lady of the Lake.",
+        "Wilson’s school register.",
+        "The forged Easter passes."
+      ],
+      "answer": 0,
+      "explanation": "He subscribes about four months after reaching New Bedford and follows its anti-slavery message.",
+      "refs": ["11.21"]
+    },
+    {
+      "id": "df-11-10",
+      "chapter": 11,
+      "prompt": "What event closes the main Narrative?",
+      "choices": [
+        "Speaking at Nantucket’s 1841 anti-slavery convention.",
+        "Douglass’s death.",
+        "A successful escape route explained in full.",
+        "Returning voluntarily to Covey."
+      ],
+      "answer": 0,
+      "explanation": "Coffin urges him to speak; the narrative closes with his work for the anti-slavery cause.",
+      "refs": ["11.22"]
+    },
+    {
+      "id": "df-12-1",
+      "chapter": 12,
+      "prompt": "What distinction is central to the Appendix?",
+      "choices": [
+        "Christianity of Christ versus slaveholding religion.",
+        "Northern faith is always innocent.",
+        "Every religion supports slavery.",
+        "Reading always causes cruelty."
+      ],
+      "answer": 0,
+      "explanation": "He explicitly defends pure, peaceable, impartial Christianity while condemning religious support for slavery.",
+      "refs": ["12.1", "12.5"]
+    },
+    {
+      "id": "df-12-2",
+      "chapter": 12,
+      "prompt": "Which example shows the hypocrisy Douglass condemns?",
+      "choices": [
+        "Praising family while separating enslaved families.",
+        "Helping someone learn to read.",
+        "Giving shelter to a fugitive.",
+        "Paying a worker their own earnings."
+      ],
+      "answer": 0,
+      "explanation": "He tests professed values against actions toward enslaved people.",
+      "refs": ["12.1"]
+    },
+    {
+      "id": "df-12-3",
+      "chapter": 12,
+      "prompt": "Does his criticism include northern churches?",
+      "choices": [
+        "Yes, when they remain in communion with slaveholders.",
+        "No, only individual southern farmers.",
+        "No, only Cookman.",
+        "Yes, because he rejects all Christianity."
+      ],
+      "answer": 0,
+      "explanation": "He criticizes complicit religious bodies north and south without condemning all faith.",
+      "refs": ["12.5", "12.6"]
+    },
+    {
+      "id": "df-12-4",
+      "chapter": 12,
+      "prompt": "What is the function of the closing parody?",
+      "choices": [
+        "Satire that exposes pious words paired with cruel deeds.",
+        "Instructions for escaping from Baltimore.",
+        "A sincere celebration of slaveholding.",
+        "A biography of Ruggles."
+      ],
+      "answer": 0,
+      "explanation": "The repeated heavenly union is ironic; Douglass copies a parody attributed to a northern Methodist preacher.",
+      "refs": ["12.6", "12.7", "12.8"]
+    },
+    {
+      "id": "df-12-5",
+      "chapter": 12,
+      "prompt": "What does he hope the book will help accomplish?",
+      "choices": [
+        "Expose slavery and hasten deliverance.",
+        "Restore Covey’s reputation.",
+        "Hide all injustice from readers.",
+        "Support the trade in enslaved people."
+      ],
+      "answer": 0,
+      "explanation": "His closing pledge relies on truth, love, and justice in the cause of liberation.",
+      "refs": ["12.9"]
+    },
+    {
+      "id": "df-12-6",
+      "chapter": 12,
+      "prompt": "Which values appear in the final pledge?",
+      "choices": [
+        "Truth, love, and justice.",
+        "Wealth, rank, and obedience.",
+        "Silence, secrecy, and ownership.",
+        "Speed, strength, and conquest."
+      ],
+      "answer": 0,
+      "explanation": "The ending names truth, love, and justice as the basis of his efforts.",
+      "refs": ["12.9"]
+    }
+  ]
+}
