@@ -141,12 +141,12 @@ async function finishStory(page: Page, chapter: Chapter, stage: number) {
             const left = await page
               .locator('.dn-beat-track b')
               .evaluate((e) => parseFloat((e as HTMLElement).style.left));
-            return left > 61 && left < 73;
+            return left > 60 && left < 69;
           },
           { intervals: [35], timeout: 6000 },
         )
         .toBe(true);
-      await page.locator('.dn-rhythm .dn-primary').click();
+      await page.keyboard.press('Space');
       await expect(page.locator('.dn-beat-pips')).toHaveAttribute(
         'aria-label',
         `${hit + 1} of 4 successful beats`,

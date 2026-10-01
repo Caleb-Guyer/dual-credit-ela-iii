@@ -299,7 +299,9 @@ function GameView({
     }
     let frame = 0,
       previous = performance.now(),
-      lastHUD = 0;
+      lastHUD = 0,
+      lastWorld = 0,
+      previousCinematic: string | undefined;
     const soundscape = audio.context
       ? new Soundscape(audio.context, mission.id, settings.current.music)
       : undefined;
@@ -324,7 +326,18 @@ function GameView({
         sprint: k.has('ShiftLeft') || k.has('ShiftRight'),
       });
       if (engine.collected.length > collected) audio.effect('ring');
-      world.render(now / 1000, settings.current.reduced, cinematic.current, speaking.current);
+      // Paused activities need responsive input, not a full 3D redraw on every animation frame.
+      // Conversations keep their character animation; an occasional redraw handles canvas resizing.
+      if (
+        !blocked.current ||
+        cinematic.current ||
+        previousCinematic !== cinematic.current ||
+        now - lastWorld > 1000
+      ) {
+        world.render(now / 1000, settings.current.reduced, cinematic.current, speaking.current);
+        lastWorld = now;
+      }
+      previousCinematic = cinematic.current;
       soundscape?.update(settings.current.music, engine.paused && !cinematic.current, engine.steps);
       if (now - lastHUD > 80) {
         lastHUD = now;
