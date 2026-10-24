@@ -28,6 +28,7 @@ import CourseHub from './pages/CourseHub';
 import DouglassCampaign from './douglass/Campaign';
 const NextDouglassCampaign = lazy(() => import('./douglass-next/Campaign'));
 const FinalDouglassCampaign = lazy(() => import('./douglass-final/Campaign'));
+const ConcordCampaign = lazy(() => import('./concord/Campaign'));
 const nav = [
   ['home', 'Play', Feather],
   ['story', 'Story', Compass],
@@ -48,6 +49,7 @@ const routes = new Set<string>([
   'douglass',
   'douglass-4-8',
   'douglass-9-end',
+  'concord',
 ]);
 export default function App() {
   const [source, setSource] = useState<number[] | null>(null);
@@ -99,6 +101,7 @@ function AppShell() {
   useEffect(() => {
     if (
       route === 'course' ||
+      route === 'concord' ||
       route === 'douglass' ||
       route === 'douglass-4-8' ||
       route === 'douglass-9-end'
@@ -106,11 +109,13 @@ function AppShell() {
       document.title =
         route === 'course'
           ? 'Dual Credit ELA III · Choose your story'
-          : route === 'douglass-9-end'
-            ? 'Chapters 9–end · Frederick Douglass'
-            : route === 'douglass-4-8'
-              ? 'Chapters 4–8 · Frederick Douglass'
-              : 'A Voice Unbroken · Frederick Douglass';
+          : route === 'concord'
+            ? 'One Night in Concord · Civil Disobedience'
+            : route === 'douglass-9-end'
+              ? 'Chapters 9–end · Frederick Douglass'
+              : route === 'douglass-4-8'
+                ? 'Chapters 4–8 · Frederick Douglass'
+                : 'A Voice Unbroken · Frederick Douglass';
       return;
     }
     document.title =
@@ -185,6 +190,18 @@ function AppShell() {
   }
   if (route === 'course') return <CourseHub />;
   if (route === 'douglass') return <DouglassCampaign />;
+  if (route === 'concord')
+    return (
+      <Suspense
+        fallback={
+          <div className="campaign-loading" role="status">
+            The lanterns are lighting in Concord…
+          </div>
+        }
+      >
+        <ConcordCampaign />
+      </Suspense>
+    );
   if (route === 'douglass-4-8' || route === 'douglass-9-end')
     return (
       <Suspense

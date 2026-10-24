@@ -344,7 +344,7 @@ test('phone controls, source reading, checkpoint reload, pause and settings work
 test('hub and Douglass campaign refresh at the deployed repository subpath', async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
-  const base = 'http://127.0.0.1:4174/dual-credit-ela-iii/';
+  const base = `http://127.0.0.1:${process.env.ELA_BUILT_PORT ?? '4174'}/dual-credit-ela-iii/`;
   await page.goto(base);
   await expect(page.locator('.course-hub')).toBeVisible();
   await page.getByRole('link', { name: 'Play Frederick Douglass', exact: true }).click();

@@ -303,7 +303,7 @@ test('New final route works under Pages; voices, source, phone control, saved ch
   await page.getByRole('button', { name: 'Close dialog' }).click();
   await page.getByRole('button', { name: 'Chapter select', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Continue Appendix', exact: true })).toBeVisible();
-  const base = 'http://127.0.0.1:4174/dual-credit-ela-iii/';
+  const base = `http://127.0.0.1:${process.env.ELA_BUILT_PORT ?? '4174'}/dual-credit-ela-iii/`;
   for (const m of missions)
     for (const s of m.stages)
       for (const l of s.lines) {

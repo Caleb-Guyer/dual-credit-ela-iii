@@ -5,12 +5,15 @@ import { readSave as readNextSave } from '../douglass-next/save';
 import { readSave as readFinalSave } from '../douglass-final/save';
 import FinalArt from '../douglass-final/Art';
 import { NextDouglassArt } from '../douglass-next/Art';
+import { readSave as readConcordSave } from '../concord/save';
+import ConcordArt from '../concord/Art';
 
 export function StoryArt({
   kind,
 }: {
-  kind: 'franklin' | 'douglass' | 'douglass-next' | 'douglass-final';
+  kind: 'franklin' | 'douglass' | 'douglass-next' | 'douglass-final' | 'concord';
 }) {
+  if (kind === 'concord') return <ConcordArt />;
   if (kind === 'douglass-final') return <FinalArt chapter={11} />;
   if (kind === 'douglass-next') return <NextDouglassArt />;
   const warm = kind === 'franklin';
@@ -104,6 +107,7 @@ export default function CourseHub() {
   const douglass = readDouglassSave();
   const next = readNextSave();
   const final = readFinalSave();
+  const concord = readConcordSave();
   const units = [
     {
       id: 'franklin' as const,
@@ -147,6 +151,17 @@ export default function CourseHub() {
       genre: 'First-person 3D',
       detail: '3 chapters + Appendix',
       completed: Object.values(final.chapters).filter((p) => p.completed).length,
+      total: 4,
+    },
+    {
+      id: 'concord' as const,
+      href: '#concord',
+      eyebrow: 'Civil Disobedience · The complete essay',
+      name: 'Henry David Thoreau',
+      subtitle: 'One Night in Concord',
+      genre: '3D exploration + strategic debates',
+      detail: '4 acts · 72 study questions',
+      completed: concord.debates.length,
       total: 4,
     },
   ];

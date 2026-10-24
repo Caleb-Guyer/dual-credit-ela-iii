@@ -2,6 +2,7 @@ import http from 'node:http';
 import { readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 const root = path.resolve('dist');
+const port = Number(process.env.ELA_BUILT_PORT ?? 4174);
 const mime = {
   '.html': 'text/html',
   '.js': 'text/javascript',
@@ -41,6 +42,6 @@ http
       res.writeHead(404).end();
     }
   })
-  .listen(4174, '127.0.0.1', () =>
-    console.log('GitHub Pages subpath simulation: http://127.0.0.1:4174/dual-credit-ela-iii/'),
+  .listen(port, '127.0.0.1', () =>
+    console.log(`GitHub Pages subpath simulation: http://127.0.0.1:${port}/dual-credit-ela-iii/`),
   );

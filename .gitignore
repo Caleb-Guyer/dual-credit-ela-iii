@@ -3,6 +3,7 @@ dist/
 .sites-runtime/
 test-results/
 playwright-report/
+work/
 *.tsbuildinfo
 .env
 .env.*

@@ -189,7 +189,7 @@ test('production assets and hash refresh work under either GitHub Pages reposito
     if (r.status() >= 400) failed.push(r.url());
   });
   for (const repo of ['dual-credit-ela-iii', 'dual-credit-ela-iii-game']) {
-    const base = 'http://127.0.0.1:4174/' + repo + '/';
+    const base = `http://127.0.0.1:${process.env.ELA_BUILT_PORT ?? '4174'}/${repo}/`;
     await page.goto(base + '#characters');
     await expect(page.locator('.page-title h1')).toHaveText('Characters');
     await page.reload();

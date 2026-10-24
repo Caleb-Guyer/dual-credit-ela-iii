@@ -273,7 +273,7 @@ test('bundled voice plays, replay and mute stop it, and all clips are served und
   await expect.poll(() => page.evaluate(() => window.nextAudio.stops)).toBeGreaterThan(stops);
   await page.getByRole('button', { name: 'Replay narration' }).click();
   await expect.poll(() => page.evaluate(() => window.nextAudio.playing.length)).toBeGreaterThan(1);
-  const base = 'http://127.0.0.1:4174/dual-credit-ela-iii/';
+  const base = `http://127.0.0.1:${process.env.ELA_BUILT_PORT ?? '4174'}/dual-credit-ela-iii/`;
   for (const clip of Object.values(manifest)) {
     const response = await request.get(base + 'douglass-next/voice/' + clip.file);
     expect(response.status()).toBe(200);

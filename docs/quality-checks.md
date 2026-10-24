@@ -1,5 +1,16 @@
 # Verification record
 
+## One Night in Concord
+
+- The full 51-paragraph/verse-block essay is bundled. Exact quotation, source-reference, distinct-option, topic-balance, and debate-evidence tests validate 12 cards, 12 objections, and 72 questions across eight topics.
+- Shared collision and scene layout tests establish a traversable route to every one of the twelve clues, prohibit walking through buildings or into the river, and verify camera-relative clue navigation.
+- Browser tests use actual WebGL and keyboard movement to collect the first clue, open its source context, dismiss only the top dialog, and verify discovery after refresh. All four environments must initialize without the fallback.
+- The full debate path exercises correct and incorrect claims/evidence, victory-save reload, leaving completion for study, closing completion, continuation, and the final ending. This test seeds discovered cards to isolate debate behavior; physical navigation is verified separately.
+- A full 24-question rehearsal intentionally misses one answer, checks 96%, reviews every alternative and source, retries the missed question, and verifies durable mastery and an empty missed queue.
+- Source search, paragraph jump, empty journal, all-card browsing, phone layout, and touch press/release are exercised. Desktop title, town, debate, study, jail, dawn, and phone screenshots are reviewed.
+- A separate `concord` CI browser worker joins the existing standard and 3D campaign suites. All verification jobs must succeed before GitHub Pages deploys. `ELA_DEV_PORT` and `ELA_BUILT_PORT` allow isolated local testing.
+- Two startup issues discovered in browser QA were corrected: forced WebGL context loss during StrictMode canvas reuse, and a queued native-dialog close event during effect replay. Resource cleanup and focus containment remain in place.
+
 ## Douglass Chapters IV–VIII
 
 - Five real WebGL worlds, 20 story moments, 42 short lines, 30 questions and 124 bundled speech files.

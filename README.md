@@ -4,6 +4,28 @@ A browser game collection for Dual Credit English Language Arts III. The launch 
 
 **[Play the collection](https://caleb-guyer.github.io/dual-credit-ela-iii/)**
 
+**New: [One Night in Concord · Civil Disobedience](https://caleb-guyer.github.io/dual-credit-ela-iii/#concord)**
+
+## One Night in Concord
+
+![One Night in Concord](docs/screenshots/concord-title.png)
+
+A first-person 3D exploration and argument game based on Thoreau’s complete 1849 essay. Four acts move from a lantern-lit village to a tax-office street, a county jail cell, and the river at dawn. Discover twelve passages, then defend three claims in each of four debates by pairing an interpretation with evidence that supports it. Your evidence deck grows with the journey. Incorrect arguments receive explanations and can be revised without losing story progress.
+
+The study desk is available from the title or during play:
+
+- **72 questions across eight topics**, including close-reading details, rhetoric, vocabulary, conscience, majority rule, complicity, taxes, prison, and the essay’s ending.
+- Adaptive ten-question practice, missed-question review, selected-topic review, and a balanced **24-question rehearsal** that reveals answers after completion.
+- A reason for **every answer option**, supporting passages, complete answer reports, and topic mastery tracked separately from campaign completion.
+- The full **51-paragraph/verse-block essay**, searchable with paragraph jumps, plus an evidence journal. Paragraph numbers are internal references rather than classroom page numbers.
+- Keyboard and touch controls, optional original procedural ambience, reduced motion, separate device-local saving, and a playable fallback if WebGL is unavailable.
+
+Move with WASD or arrows, drag to look, hold Shift to move faster, and press E to inspect nearby evidence. Q/R turn the view; PageUp/PageDown adjust vertical look. Escape pauses. Practice uses keys 1–4 and Enter. Quizzes have no time limit and do not require campaign completion.
+
+Dialogue, encounter staging, and scenery are original adaptations; evidence quotations and factual answers refer to the essay. The game evaluates understanding of Thoreau’s position, not personal political agreement. Coverage uses the full essay; match your teacher’s assigned excerpt and notes when preparing for a classroom quiz. [Source and adaptation outline](docs/concord-source-outline.md).
+
+## The collection
+
 | Work               | Campaign                                                                                              | Scope                                                                              |
 | ------------------ | ----------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
 | Benjamin Franklin  | [The Path to Print](https://caleb-guyer.github.io/dual-credit-ela-iii/#home)                          | The supplied Part One PDF; 12 combat levels and optional detailed study            |

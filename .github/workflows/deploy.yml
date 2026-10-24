@@ -21,7 +21,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        project: [standard, 3d, final3d]
+        project: [standard, 3d, final3d, concord]
     permissions:
       contents: read
       pages: read
