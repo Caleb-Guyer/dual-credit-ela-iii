@@ -528,7 +528,7 @@ export default function ConcordCampaign() {
       ) : (
         <div className="cn-game-shell">
           <World
-            key={playAct}
+            key={`world-${playAct}`}
             act={playAct}
             collected={save.collected}
             paused={blocked}
@@ -547,7 +547,7 @@ export default function ConcordCampaign() {
               Notebook <kbd>J</kbd>
             </button>
           </header>
-          <div className="cn-chapter-caption" key={playAct}>
+          <div className="cn-chapter-caption" key={`chapter-${playAct}`}>
             <p>
               {['I', 'II', 'III', 'IV'][playAct]} · {act.time}
             </p>

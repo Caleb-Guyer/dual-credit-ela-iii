@@ -148,7 +148,11 @@ test('Concord explores real 3D, collects evidence, opens source context and resu
 
 test('all four conversations require a reply followed by supporting evidence', async ({ page }) => {
   const errors: string[] = [];
+  const renderingWarnings: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
+  page.on('console', (message) => {
+    if (/same key|unique.*key/i.test(message.text())) renderingWarnings.push(message.text());
+  });
   await setup(page, { collected: evidence.map((card) => card.id) });
   await enter(page);
   async function reply(text: string) {
@@ -244,6 +248,7 @@ test('all four conversations require a reply followed by supporting evidence', a
   expect(progress.completed).toBe(true);
   expect(progress.debates).toEqual([0, 1, 2, 3]);
   expect(errors).toEqual([]);
+  expect(renderingWarnings).toEqual([]);
 });
 
 test('24-question rehearsal withholds answers, explains all choices, saves mastery and clears missed review', async ({
