@@ -10,6 +10,7 @@
 - Source search, paragraph jump, empty journal, all-card browsing, phone layout, and touch press/release are exercised. Desktop title, town, debate, study, jail, dawn, and phone screenshots are reviewed.
 - A separate `concord` CI browser worker joins the existing standard and 3D campaign suites. All verification jobs must succeed before GitHub Pages deploys. `ELA_DEV_PORT` and `ELA_BUILT_PORT` allow isolated local testing.
 - Two startup issues discovered in browser QA were corrected: forced WebGL context loss during StrictMode canvas reuse, and a queued native-dialog close event during effect replay. Resource cleanup and focus containment remain in place.
+- The full deployment run also exposed a pre-existing Franklin test-driver weakness: its melee player could stop on a platform outside actual swing height or miss an enemy behind it. The driver now approaches on the same floor, returns for uncleared enemies, and distinguishes safe drops from gaps. Production game logic, victory assertions, and time limits are unchanged; all three weapon-level checks pass through normal controls.
 
 ## Douglass Chapters IV–VIII
 

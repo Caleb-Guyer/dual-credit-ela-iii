@@ -33,46 +33,81 @@ async function play(page: Page) {
 async function completeCombatLevel(page: Page) {
   return await page.evaluate(
     () =>
-      new Promise<{ finished: boolean; x: number; deaths: number }>((resolve) => {
+      new Promise<{
+        finished: boolean;
+        x: number;
+        y: number;
+        deaths: number;
+        remaining: { kind: string; x: number; y: number; hp: number }[];
+      }>((resolve) => {
         const game = window.platformTestGame,
           start = performance.now();
         function frame() {
           if (game.finished || performance.now() - start > 75000) {
-            game.release('right');
-            game.release('jump');
-            game.release('attack');
-            resolve({ finished: game.finished, x: game.player.x, deaths: game.deaths });
+            for (const input of ['left', 'right', 'jump', 'attack', 'dash', 'interact'] as const)
+              game.release(input);
+            resolve({
+              finished: game.finished,
+              x: game.player.x,
+              y: game.player.y,
+              deaths: game.deaths,
+              remaining: game.world.enemies
+                .filter((e) => e.alive)
+                .map(({ kind, x, y, hp }) => ({ kind, x, y, hp })),
+            });
             return;
           }
           const p = game.player;
+          const center = p.x + p.w / 2;
+          // A missed enemy can be behind us. At a closed gate, return for its remaining
+          // enemies instead of endlessly pushing right against the gate.
+          const gate = game.world.gates.find((g) => !g.open && Math.abs(g.x - center) < 130);
           const target = game.world.enemies
-            .filter((e) => e.alive && e.x > p.x - 30 && e.x - p.x < 420)
-            .sort((a, b) => a.x - b.x)[0];
+            .filter(
+              (e) => e.alive && (Math.abs(e.x + e.w / 2 - center) < 420 || e.zone === gate?.zone),
+            )
+            .sort((a, b) => Math.abs(a.x + a.w / 2 - center) - Math.abs(b.x + b.w / 2 - center))[0];
           const weapon = game.world.weapon;
           const distance =
             weapon.speed === 0 || weapon.kind === 'hammer' ? weapon.reach * 0.75 : 260;
-          const shouldFight =
-            !!target &&
-            Math.abs(target.x - p.x) < distance &&
-            Math.abs(target.y - p.y) < 100 &&
-            p.grounded;
+          const targetDistance = target ? Math.abs(target.x + target.w / 2 - center) : Infinity;
+          // Stop on the same floor as the enemy. Merely comparing top coordinates made
+          // the axe wait on a raised platform above the guardian, outside its swing.
+          const sameLane = !!target && Math.abs(target.y + target.h - (p.y + p.h)) < 48;
+          const shouldFight = !!target && targetDistance < distance && sameLane && p.grounded;
           game.press('attack');
           game.release('left');
           game.release('right');
-          const direction = target && target.x < p.x ? 'left' : 'right';
+          const direction = target && target.x + target.w / 2 < center ? 'left' : 'right';
           if (!shouldFight || p.facing !== (direction === 'right' ? 1 : -1)) game.press(direction);
           const standing = game.world.platforms.find(
             (s) => Math.abs(s.y - p.y - p.h) < 3 && p.x + p.w > s.x && p.x < s.x + s.w,
           );
-          game.release('jump');
-          if (
-            (p.grounded && standing && standing.x + standing.w - p.x < 100) ||
-            (!p.grounded && p.vy > 100 && p.y > 400 && p.jumps < 2)
-          )
-            game.press('jump');
-          else if (p.vy < 0) game.controls.jump = true;
+          const sign = direction === 'right' ? 1 : -1;
+          const edge = standing ? (sign > 0 ? standing.x + standing.w : standing.x) : center;
+          const edgeDistance = sign > 0 ? edge - p.x - p.w : p.x - edge;
+          const safeFloor = (x: number, below: number) =>
+            game.world.platforms.some((s) => x > s.x && x < s.x + s.w && s.y >= below);
+          // A high ledge with ground below is a safe drop, not a gap that needs another
+          // jump. This lets melee weapons descend to the guardian's floor naturally.
+          const gap =
+            p.grounded &&
+            standing &&
+            !shouldFight &&
+            edgeDistance < 85 &&
+            !safeFloor(edge + sign * 35, standing.y);
+          const recoverGap =
+            !p.grounded &&
+            p.vy > 100 &&
+            p.y > 400 &&
+            p.jumps < 2 &&
+            !safeFloor(center + sign * 25, p.y + p.h);
+          const elevatedTarget =
+            p.grounded && target && targetDistance < 145 && target.y + target.h < p.y + p.h - 50;
+          const dodge = p.grounded && target && target.state === 'windup' && targetDistance < 150;
+          if (gap || recoverGap || elevatedTarget || dodge) game.press('jump');
+          else if (p.vy >= 0) game.release('jump');
           game.release('dash');
-          if (target && target.state === 'windup' && target.x - p.x < 150) game.press('jump');
           if (p.x > game.world.exit.x - 50) {
             game.press('right');
             game.press('interact');
