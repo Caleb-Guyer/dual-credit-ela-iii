@@ -194,8 +194,12 @@ function AppShell() {
     return (
       <Suspense
         fallback={
-          <div className="campaign-loading" role="status">
-            The lanterns are lighting in Concord…
+          <div
+            className="campaign-loading"
+            role="status"
+            style={{ background: '#eae2ce', color: '#344832', font: '18px Georgia' }}
+          >
+            Loading Concord…
           </div>
         }
       >

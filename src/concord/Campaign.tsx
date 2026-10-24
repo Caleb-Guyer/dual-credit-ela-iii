@@ -1,25 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import {
-  ArrowLeft,
-  ArrowRight,
-  BookOpen,
-  Check,
-  ChevronRight,
-  Compass,
-  Feather,
-  Library,
-  Moon,
-  Pause,
-  Play,
-  RotateCcw,
-  Settings,
-  Shield,
-  Sparkles,
-  Volume2,
-  VolumeX,
-  X,
-} from 'lucide-react';
-import World from './World';
+import World, { hotspots } from './World';
+import Frontispiece from './Frontispiece';
 import Study, { SourcePanel } from './Study';
 import { debates, evidence, type Debate, type Evidence } from './data';
 import { freshSave, readSave, SAVE_KEY, type ConcordSave } from './save';
@@ -28,48 +9,39 @@ import './concord.css';
 
 export const acts = [
   {
-    name: 'The voice within',
+    name: 'The common',
     place: 'Concord village',
-    time: 'DUSK',
-    subtitle: 'When the crowd is certain, who decides what is right?',
-    goal: 'Explore the village. Find three arguments about conscience and government.',
+    time: 'Dusk',
     intro:
-      'You enter a town where every familiar institution asks for obedience. Listen closely: a law can command your body, but can it decide what is right?',
-    ending:
-      'A majority can possess the power to rule without possessing the truth. Your conscience is a responsibility you cannot hand away.',
+      'A notice has been posted on the common. Read it, listen to the neighbors, and call at the print shop before you meet the tax collector.',
+    ending: 'The law has the town behind it. You have begun to ask whether that makes it right.',
   },
   {
-    name: 'The price of consent',
+    name: 'The tax collector',
     place: 'The tax office',
-    time: 'EVENING',
-    subtitle: 'An opinion is easy. What does it mean to act on it?',
-    goal: 'Examine the demand. Gather three arguments about action and complicity.',
+    time: 'Evening',
     intro:
-      'An ordinary demand for a tax becomes a moral confrontation. The question is not simply whether you dislike an injustice. It is whether your own support helps sustain it.',
+      'The collector is waiting outside his office. Read the papers on his table, the merchant’s ledger, and the notice by the jail door before you answer him.',
     ending:
-      'Refusal carries a cost. For Thoreau, obedience can carry a deeper one: becoming an agent of the injustice you condemn.',
+      'Thoreau refused the poll tax because he would not give his allegiance to a government that sustained slavery and the war against Mexico. His refusal brought him to jail.',
   },
   {
-    name: 'A freer place',
+    name: 'The county jail',
     place: 'The county jail',
-    time: 'MIDNIGHT',
-    subtitle: 'The door is locked. The mind is not.',
-    goal: 'Examine the cell. Discover what the State can—and cannot—confine.',
+    time: 'Night',
     intro:
-      'Thoreau spent one night in jail for refusing the poll tax. This symbolic room brings together his reflections on force, conscience, and the strange meaning of freedom.',
+      'The door closes behind you. Examine the desk, the window, and the bed. There are limits to what these walls can hold.',
     ending:
-      'The State can imprison a body. Thoreau argues that physical strength gives it no superior claim to moral or intellectual authority.',
+      'Someone else paid the tax, and Thoreau was released the next morning. He left with less respect for the State’s power, not less confidence in his own judgment.',
   },
   {
-    name: 'A majority of one',
-    place: 'The road at dawn',
-    time: 'FIRST LIGHT',
-    subtitle: 'You return to the same town. You see it differently.',
-    goal: 'Collect the final three arguments. Define the government that could earn your respect.',
+    name: 'The road home',
+    place: 'The river road',
+    time: 'Morning',
     intro:
-      'Someone else paid the tax, and Thoreau was released. The essay moves beyond the cell toward a harder question: what would a State look like if it respected the individual?',
+      'It is morning in Concord. Read the newspaper, visit the river overlook, and check the letterbox on the road back to town. Consider what kind of government could earn your respect.',
     ending:
-      'The essay asks its reader to carry an argument into life: withdraw your own support from injustice and imagine a government worthy of your respect.',
+      'After his release, Thoreau collected his mended shoe and joined a huckleberry party. The night was over. The questions remained.',
   },
 ];
 
@@ -84,8 +56,8 @@ function Modal({
   onClose: () => void;
   wide?: boolean;
 }) {
-  const panel = useRef<HTMLDivElement>(null);
-  const closeRef = useRef(onClose);
+  const panel = useRef<HTMLDivElement>(null),
+    closeRef = useRef(onClose);
   closeRef.current = onClose;
   useEffect(() => {
     const previous = document.activeElement as HTMLElement | null;
@@ -137,11 +109,51 @@ function Modal({
         tabIndex={-1}
       >
         <button className="cn-close" onClick={onClose} aria-label={`Close ${title}`}>
-          <X size={20} />
+          ×
         </button>
         {children}
       </div>
     </div>
+  );
+}
+
+function Portrait({ kind }: { kind: number }) {
+  return (
+    <svg
+      className="cn-portrait"
+      viewBox="0 0 120 150"
+      aria-hidden="true"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.4"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M14 144q5-28 30-34l2-19m30 1 2 18q24 8 29 34" fill="#b8b8a1" />
+      <path d="M44 111l16 13-9 18-14-28m41-3-18 13 9 18 16-27" fill="#e8dfc8" />
+      <path d="M43 57q-7 24 4 40 12 13 25 0 12-14 7-40" fill="#d7c8a9" />
+      {kind % 2 === 0 ? (
+        <path d="M29 56q34-12 63-1l-1 7q-36 7-63 0zm11-3 4-31 34 1 8 30" fill="#5d6858" />
+      ) : (
+        <path d="M40 59q-8-32 20-31 27-2 23 31l-10-9-13-6-12 9z" fill="#5c6657" />
+      )}
+      <path d="M45 68q7-4 12 0m8 0q6-4 12 0m-27 3 2 1m17-1 2 1m-11-1-3 13 6 1m-9 7q8 3 14-1" />
+      <path
+        d={
+          kind === 2
+            ? 'M45 87q1 24 16 25 15-8 16-25l-8 12-10 3-7-8z'
+            : 'M44 88q2 10 6 13m25-14q-1 9-6 15'
+        }
+      />
+      {Array.from({ length: 12 }, (_, i) => (
+        <path
+          key={i}
+          d={`M${18 + i * 7} 142l${i < 6 ? 9 : -8} -${13 + (i % 4) * 4}`}
+          opacity=".5"
+        />
+      ))}
+      <path d="M48 38l21 2m-24 5 29 1m-16 82-1 14m-26-23-8 15m68-17 9 16" opacity=".4" />
+    </svg>
   );
 }
 
@@ -159,197 +171,190 @@ function DebateEncounter({
   const [round, setRound] = useState(0),
     [claim, setClaim] = useState<number | null>(null),
     [card, setCard] = useState<string | null>(null);
-  const [feedback, setFeedback] = useState<{ correct: boolean; text: string } | null>(null);
-  const [attempts, setAttempts] = useState(0),
-    [hint, setHint] = useState(false),
+  const [step, setStep] = useState<'reply' | 'passage'>('reply');
+  const [feedback, setFeedback] = useState<{ correct: boolean; text: string } | null>(null),
     [won, setWon] = useState(false);
   const [paragraph, setParagraph] = useState<number | null>(null);
   const current = debate.rounds[round];
   const hand = useRef<Evidence[][]>(
     debate.rounds.map((r, i) => {
       const target = evidence.find((e) => e.id === r.evidenceId)!;
-      const alternatives = evidence.slice(0, (debate.id + 1) * 3).filter((e) => e.id !== target.id);
-      const rotated = [...alternatives.slice(i), ...alternatives.slice(0, i)];
-      const cards = [target, ...rotated.slice(0, 3)];
-      return cards.sort((a, b) => a.id.localeCompare(b.id));
+      const others = evidence.slice(0, (debate.id + 1) * 3).filter((e) => e.id !== target.id);
+      return [target, ...[...others.slice(i), ...others.slice(0, i)].slice(0, 3)].sort((a, b) =>
+        a.id.localeCompare(b.id),
+      );
     }),
   );
   function submit() {
     if (claim === null || !card || feedback) return;
-    const chosen = current.claims[claim];
-    const correct = chosen.correct && card === current.evidenceId;
-    setAttempts((n) => n + 1);
+    const correct = current.claims[claim].correct && card === current.evidenceId;
     setFeedback({
       correct,
       text: correct
         ? current.explanation
-        : !chosen.correct
-          ? chosen.explanation
-          : 'Your claim is sound, but this passage does not supply the strongest support for it. Read what each card actually establishes, then connect the evidence to this objection.',
+        : !current.claims[claim].correct
+          ? current.claims[claim].explanation
+          : 'Your reply fits Thoreau’s position, but this passage does not support it. Look for the words that answer this particular objection.',
     });
   }
   function advance() {
-    if (!feedback?.correct) {
-      setFeedback(null);
-      setClaim(null);
-      setCard(null);
-      return;
-    }
-    if (round === debate.rounds.length - 1) {
+    if (feedback?.correct && round === debate.rounds.length - 1) {
       onResolved();
       setWon(true);
       return;
     }
-    setRound((n) => n + 1);
+    if (feedback?.correct) setRound((n) => n + 1);
     setClaim(null);
     setCard(null);
     setFeedback(null);
-    setHint(false);
+    setStep('reply');
   }
+  useEffect(() => {
+    const key = (e: KeyboardEvent) => {
+      if (won || feedback || paragraph !== null || e.altKey || e.ctrlKey || e.metaKey || e.repeat)
+        return;
+      if (/^[1-4]$/.test(e.key)) {
+        const i = Number(e.key) - 1;
+        if (step === 'reply' && i < current.claims.length) {
+          e.preventDefault();
+          setClaim(i);
+        } else if (step === 'passage' && i < hand.current[round].length) {
+          e.preventDefault();
+          setCard(hand.current[round][i].id);
+        }
+      }
+    };
+    window.addEventListener('keydown', key);
+    return () => window.removeEventListener('keydown', key);
+  }, [won, feedback, paragraph, step, current, round]);
   return (
     <Modal title={debate.title} onClose={won ? onWin : onClose} wide>
       {won ? (
         <div className="cn-debate-victory">
-          <div className="cn-seal">
-            <Feather size={35} />
-          </div>
-          <p className="cn-kicker">ARGUMENT RESOLVED</p>
-          <h2>
-            A conviction,
-            <br />
-            <em>well defended.</em>
-          </h2>
-          <p>
-            You answered all three objections with a defensible claim and its supporting passage.
-          </p>
-          <div className="cn-victory-stats">
-            <span>
-              <strong>3 / 3</strong>Arguments defended
-            </span>
-            <span>
-              <strong>{attempts === 3 ? 'Precise' : 'Persistent'}</strong>
-              {attempts} argument attempts
-            </span>
-          </div>
+          <Portrait kind={debate.id} />
+          <p className="cn-margin-note">The conversation ends</p>
+          <h2>{debate.title}</h2>
+          <p>You have answered all three objections using the essay.</p>
           <button className="cn-button cn-primary" onClick={onWin}>
-            Continue the night <ArrowRight size={17} />
+            Continue the night
           </button>
         </div>
       ) : (
         <>
-          <div className="cn-debate-heading">
-            <span className="cn-kicker">A MAJORITY OF ONE · DEBATE {debate.id + 1}</span>
-            <div className="cn-round-dots" aria-label={`Objection ${round + 1} of 3`}>
-              {debate.rounds.map((_, i) => (
-                <i key={i} className={i < round ? 'done' : i === round ? 'active' : ''} />
-              ))}
-            </div>
-          </div>
-          <h2>{debate.title}</h2>
-          <p className="cn-muted cn-debate-intro">{debate.intro}</p>
-          <div className="cn-opponent">
-            <div className="cn-avatar">{debate.speaker.slice(0, 1)}</div>
+          <div className="cn-conversation-heading">
+            <Portrait kind={debate.id} />
             <div>
-              <p className="cn-kicker">
-                {debate.speaker} <span>· {debate.role}</span>
-              </p>
+              <p className="cn-margin-note">{debate.speaker}</p>
               <blockquote>{current.objection}</blockquote>
             </div>
           </div>
-          <div className="cn-debate-rule">
-            <Shield size={16} />
-            <span>
-              Build your reply: choose a claim, pair it with evidence, then commit your argument.
-            </span>
-          </div>
-          <div className="cn-claim-grid">
-            {current.claims.map((c, i) => (
-              <button
-                key={c.text}
-                className={`cn-claim ${claim === i ? 'selected' : ''}`}
-                aria-pressed={claim === i}
-                disabled={!!feedback}
-                onClick={() => setClaim(i)}
-              >
-                <span>0{i + 1}</span>
-                {c.text}
-                {claim === i && <Check size={16} />}
-              </button>
-            ))}
-          </div>
-          <div className="cn-deck-heading">
-            <p className="cn-kicker">
-              YOUR EVIDENCE HAND <span>· CHOOSE ONE</span>
-            </p>
-            <button className="cn-text-button" onClick={() => setHint(!hint)} aria-expanded={hint}>
-              <Sparkles size={13} /> Consider the connection
-            </button>
-          </div>
-          {hint && (
-            <p className="cn-hint">
-              Find the card that explains “
-              {evidence.find((e) => e.id === current.evidenceId)?.title.toLowerCase()}.” A quotation
-              earns its place by supporting your specific claim.
-            </p>
+          <p className="cn-conversation-step">
+            {round + 1} of 3 <span aria-hidden="true">—</span>{' '}
+            {step === 'reply' ? 'What do you say?' : 'Which passage supports your reply?'}
+          </p>
+          {step === 'reply' ? (
+            <>
+              <div className="cn-claim-grid">
+                {current.claims.map((choice, i) => (
+                  <button
+                    className={`cn-claim ${claim === i ? 'selected' : ''}`}
+                    key={choice.text}
+                    aria-pressed={claim === i}
+                    onClick={() => setClaim(i)}
+                  >
+                    <span>{i + 1}.</span>
+                    {choice.text}
+                  </button>
+                ))}
+              </div>
+              <div className="cn-conversation-actions">
+                <button
+                  className="cn-button cn-primary"
+                  disabled={claim === null}
+                  onClick={() => setStep('passage')}
+                >
+                  Choose a supporting passage
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <details className="cn-your-reply">
+                <summary>Your reply</summary>
+                <p>{claim !== null ? current.claims[claim].text : ''}</p>
+              </details>
+              <div className="cn-evidence-hand">
+                {hand.current[round].map((e, i) => (
+                  <button
+                    className={`cn-evidence-card ${card === e.id ? 'selected' : ''}`}
+                    key={e.id}
+                    aria-pressed={card === e.id}
+                    disabled={!!feedback}
+                    onClick={() => setCard(e.id)}
+                  >
+                    <span className="cn-passage-number">{i + 1}.</span>
+                    <q>{e.quote}</q>
+                    <span className="cn-passage-reference">Paragraph {e.paragraph}</span>
+                  </button>
+                ))}
+              </div>
+              {!feedback && (
+                <details className="cn-debate-hint">
+                  <summary>Need a hint?</summary>
+                  <p>
+                    Look for the passage about{' '}
+                    {evidence.find((e) => e.id === current.evidenceId)?.title.toLowerCase()}.
+                  </p>
+                </details>
+              )}
+              {feedback && (
+                <div
+                  className={`cn-feedback ${feedback.correct ? 'correct' : 'incorrect'}`}
+                  role="status"
+                >
+                  <p>{feedback.text}</p>
+                  <button
+                    className="cn-text-button"
+                    onClick={() =>
+                      setParagraph(evidence.find((e) => e.id === current.evidenceId)!.paragraph)
+                    }
+                  >
+                    Read the supporting passage
+                  </button>
+                </div>
+              )}
+              <div className="cn-conversation-actions">
+                {feedback ? (
+                  <button className="cn-button cn-primary" onClick={advance}>
+                    {feedback.correct
+                      ? round === 2
+                        ? 'Finish the debate'
+                        : 'Next objection'
+                      : 'Revise your argument'}
+                  </button>
+                ) : (
+                  <>
+                    <button
+                      className="cn-text-button"
+                      onClick={() => {
+                        setStep('reply');
+                        setCard(null);
+                      }}
+                    >
+                      Change your reply
+                    </button>
+                    <button
+                      className="cn-button cn-primary"
+                      disabled={card === null}
+                      onClick={submit}
+                    >
+                      Commit argument
+                    </button>
+                  </>
+                )}
+              </div>
+            </>
           )}
-          <div className="cn-evidence-hand">
-            {hand.current[round].map((e) => (
-              <button
-                key={e.id}
-                className={`cn-evidence-card ${card === e.id ? 'selected' : ''}`}
-                onClick={() => setCard(e.id)}
-                disabled={!!feedback}
-                aria-pressed={card === e.id}
-              >
-                <span className="cn-card-number">
-                  {e.id.slice(1)} <Feather size={13} />
-                </span>
-                <strong>{e.title}</strong>
-                <q>{e.quote}</q>
-                <span className="cn-card-topic">{e.topic}</span>
-              </button>
-            ))}
-          </div>
-          {feedback && (
-            <div
-              className={`cn-feedback ${feedback.correct ? 'correct' : 'incorrect'}`}
-              role="status"
-            >
-              <strong>
-                {feedback.correct ? 'The evidence holds.' : 'Rethink the connection.'}
-              </strong>
-              <p>{feedback.text}</p>
-              <button
-                className="cn-text-button"
-                onClick={() =>
-                  setParagraph(evidence.find((e) => e.id === current.evidenceId)!.paragraph)
-                }
-              >
-                Read the supporting passage <BookOpen size={14} />
-              </button>
-            </div>
-          )}
-          <div className="cn-debate-footer">
-            <span>Interpret Thoreau’s position. Your personal agreement is not scored.</span>
-            {feedback ? (
-              <button className="cn-button cn-primary" onClick={advance}>
-                {feedback.correct
-                  ? round === 2
-                    ? 'Finish the debate'
-                    : 'Next objection'
-                  : 'Revise your argument'}{' '}
-                <ArrowRight size={16} />
-              </button>
-            ) : (
-              <button
-                className="cn-button cn-primary"
-                disabled={claim === null || card === null}
-                onClick={submit}
-              >
-                Commit argument <ArrowRight size={16} />
-              </button>
-            )}
-          </div>
           {paragraph !== null && (
             <SourcePanel paragraph={paragraph} onClose={() => setParagraph(null)} />
           )}
@@ -360,27 +365,28 @@ function DebateEncounter({
 }
 
 export default function ConcordCampaign() {
-  const [save, setSave] = useState<ConcordSave>(readSave);
-  const [view, setView] = useState<'home' | 'play' | 'study'>('home');
-  const [studyTab, setStudyTab] = useState<'practice' | 'source' | 'journal'>('practice');
-  const [playAct, setPlayAct] = useState(save.act);
+  const [save, setSave] = useState<ConcordSave>(readSave),
+    [view, setView] = useState<'home' | 'play' | 'study'>('home');
+  const [studyTab, setStudyTab] = useState<'practice' | 'source' | 'journal'>('practice'),
+    [playAct, setPlayAct] = useState(save.act);
   const [inspected, setInspected] = useState<Evidence | null>(null),
     [intro, setIntro] = useState(false),
     [settings, setSettings] = useState(false),
     [paused, setPaused] = useState(false);
   const [debate, setDebate] = useState(false),
     [actComplete, setActComplete] = useState(false),
-    [ending, setEnding] = useState(false);
-  const [paragraph, setParagraph] = useState<number | null>(null),
-    [storageError, setStorageError] = useState(false),
+    [ending, setEnding] = useState(false),
+    [paragraph, setParagraph] = useState<number | null>(null);
+  const [storageError, setStorageError] = useState(false),
     [confirmReset, setConfirmReset] = useState(false);
-  const [near, setNear] = useState<string | null>(null);
   const returnView = useRef<'home' | 'play'>('home'),
     audio = useRef<ConcordAudio | null>(null);
+  const positions = useRef<Record<number, { x: number; z: number; yaw: number; pitch?: number }>>(
+    {},
+  );
   const act = acts[playAct],
-    cards = evidence.slice(playAct * 3, playAct * 3 + 3);
-  const found = cards.filter((e) => save.collected.includes(e.id)).length;
-  const mastered = Object.values(save.mastery).filter((m) => m.streak >= 2).length;
+    cards = evidence.slice(playAct * 3, playAct * 3 + 3),
+    found = cards.filter((e) => save.collected.includes(e.id)).length;
   const blocked =
     intro || settings || paused || !!inspected || debate || actComplete || paragraph !== null;
   useEffect(() => {
@@ -396,56 +402,57 @@ export default function ConcordCampaign() {
     return () => audio.current?.dispose();
   }, []);
   useEffect(() => {
-    if (save.music && !document.hidden) audio.current?.start();
-    else audio.current?.stop();
-    const visibility = () => {
-      if (document.hidden) audio.current?.stop();
-      else if (save.music) audio.current?.start();
-    };
-    const unlock = () => {
+    const sound = () => {
       if (save.music && !document.hidden) audio.current?.start();
+      else audio.current?.stop();
     };
-    document.addEventListener('visibilitychange', visibility);
-    window.addEventListener('pointerdown', unlock);
-    window.addEventListener('keydown', unlock);
+    sound();
+    document.addEventListener('visibilitychange', sound);
+    window.addEventListener('pointerdown', sound);
+    window.addEventListener('keydown', sound);
     return () => {
-      document.removeEventListener('visibilitychange', visibility);
-      window.removeEventListener('pointerdown', unlock);
-      window.removeEventListener('keydown', unlock);
+      document.removeEventListener('visibilitychange', sound);
+      window.removeEventListener('pointerdown', sound);
+      window.removeEventListener('keydown', sound);
     };
   }, [save.music]);
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
       if (
-        e.key === 'Escape' &&
-        view === 'play' &&
-        !intro &&
-        !settings &&
-        !inspected &&
-        !debate &&
-        !actComplete &&
-        paragraph === null
+        view !== 'play' ||
+        intro ||
+        settings ||
+        inspected ||
+        debate ||
+        actComplete ||
+        paragraph !== null
       )
-        setPaused((p) => !p);
+        return;
+      if (e.key === 'Escape') setPaused((p) => !p);
+      if (e.code === 'KeyJ' && !paused && !e.ctrlKey && !e.metaKey) {
+        e.preventDefault();
+        openStudy('journal');
+      }
     };
     window.addEventListener('keydown', key);
     return () => window.removeEventListener('keydown', key);
-  }, [view, intro, settings, inspected, debate, actComplete, paragraph]);
+  }, [view, intro, settings, inspected, debate, actComplete, paragraph, paused]);
   function openStudy(tab: 'practice' | 'source' | 'journal') {
     returnView.current = view === 'play' ? 'play' : 'home';
     setStudyTab(tab);
     setView('study');
   }
   function begin(index = save.act) {
+    delete positions.current[index];
     setPlayAct(index);
     setView('play');
     setIntro(true);
     setEnding(false);
   }
   function inspect(id: string) {
-    const e = evidence.find((e) => e.id === id);
-    if (!e) return;
-    setInspected(e);
+    const item = evidence.find((e) => e.id === id);
+    if (!item) return;
+    setInspected(item);
     setSave((s) => ({ ...s, collected: [...new Set([...s.collected, id])] }));
   }
   function recordDebate() {
@@ -467,10 +474,16 @@ export default function ConcordCampaign() {
       setEnding(true);
       setView('home');
     } else {
+      delete positions.current[playAct + 1];
       setPlayAct(playAct + 1);
       setIntro(true);
     }
   }
+  const warning = storageError && (
+    <p className="cn-storage" role="alert">
+      Progress cannot be saved in this browser. You can keep playing for this session.
+    </p>
+  );
   if (view === 'study')
     return (
       <div className="cn-root">
@@ -480,162 +493,38 @@ export default function ConcordCampaign() {
           onBack={() => setView(returnView.current)}
           initialTab={studyTab}
         />
-        {storageError && (
-          <p className="cn-storage" role="alert">
-            Browser storage is unavailable. This session works, but progress cannot be saved on this
-            device.
-          </p>
-        )}
+        {warning}
       </div>
     );
   return (
     <main className={`cn-root ${view === 'play' ? 'cn-playing' : ''}`}>
       {view === 'home' ? (
-        <>
-          <div className="cn-hero-world" aria-hidden="true">
-            <World
-              act={0}
-              collected={[]}
-              paused={settings || ending}
-              reduced={save.reduced}
-              onInspect={() => {}}
-              preview
-            />
-          </div>
-          <div className="cn-hero-shade" />
-          <header className="cn-header">
-            <a href="#course" className="cn-brand">
-              <span>
-                <Moon size={18} />
-              </span>
-              <div>
-                DUAL CREDIT<small>ELA III COLLECTION</small>
-              </div>
-            </a>
-            <nav aria-label="Concord navigation">
-              <button onClick={() => openStudy('source')}>
-                <BookOpen size={15} /> The essay
-              </button>
-              <button onClick={() => openStudy('practice')}>
-                <Library size={15} /> Study room
-              </button>
-              <button
-                className="cn-icon-button"
-                onClick={() => setSettings(true)}
-                aria-label="Open settings"
-              >
-                <Settings size={18} />
-              </button>
-            </nav>
-          </header>
-          <section className="cn-hero">
-            <div className="cn-kicker">
-              <i /> HENRY DAVID THOREAU · CIVIL DISOBEDIENCE
-            </div>
+        <div className="cn-title-screen">
+          <Frontispiece />
+          <a href="#course" className="cn-collection-link">
+            ← ELA III collection
+          </a>
+          <section className="cn-title-copy">
+            <p className="cn-byline">
+              Henry David Thoreau’s <i>Civil Disobedience</i>
+            </p>
             <h1>
               One Night
               <br />
-              in <em>Concord.</em>
+              in Concord
             </h1>
-            <p className="cn-hero-tagline">
-              The town sleeps.
-              <br />
-              Your conscience doesn’t.
-            </p>
-            <p className="cn-hero-description">
-              Walk the streets. Follow the evidence.
-              <br />
-              Defend an idea powerful enough to outlive a prison wall.
-            </p>
-            <div className="cn-hero-actions">
-              <button className="cn-button cn-primary" onClick={() => begin()}>
-                <Play size={16} />
-                {save.collected.length ? 'Continue your night' : 'Enter Concord'}
-                <ArrowRight size={17} />
+            <p className="cn-title-setting">Massachusetts, 1846</p>
+            <nav className="cn-title-menu" aria-label="Game menu">
+              <button className="cn-menu-begin" onClick={() => begin()}>
+                {save.collected.length || save.debates.length ? 'Continue' : 'Begin'}{' '}
+                <span aria-hidden="true">→</span>
               </button>
-              <button className="cn-button cn-secondary" onClick={() => openStudy('practice')}>
-                Practice the reading <BookOpen size={16} />
-              </button>
-            </div>
-            <div className="cn-hero-details">
-              <span>
-                <Compass size={14} /> 3D EXPLORATION
-              </span>
-              <span>
-                <Feather size={14} /> STRATEGIC DEBATES
-              </span>
-              <span>
-                <BookOpen size={14} /> CLOSE READING
-              </span>
-            </div>
+              <button onClick={() => openStudy('practice')}>Reading practice</button>
+              <button onClick={() => setSettings(true)}>Options</button>
+            </nav>
           </section>
-          <div className="cn-scene-caption">
-            <span className="cn-cross">+</span>
-            <div>
-              CONCORD, MASSACHUSETTS<small>A small town. A radical question.</small>
-            </div>
-            <span className="cn-caption-line" />
-          </div>
-          <section className="cn-night-path" aria-label="The four acts">
-            <div className="cn-path-label">
-              <span className="cn-kicker">ONE NIGHT. FOUR QUESTIONS.</span>
-              <span className="cn-muted">Your progress saves on this device.</span>
-            </div>
-            <div className="cn-acts">
-              {acts.map((a, i) => (
-                <button
-                  key={a.name}
-                  className={`cn-act ${save.debates.includes(i) ? 'complete' : ''}`}
-                  onClick={() => begin(i)}
-                  disabled={i > save.act}
-                >
-                  <span className="cn-act-number">
-                    {save.debates.includes(i) ? <Check size={17} /> : `0${i + 1}`}
-                  </span>
-                  <div>
-                    <small>{a.time}</small>
-                    <h3>{a.name}</h3>
-                    <p>{a.place}</p>
-                  </div>
-                  <ChevronRight size={16} />
-                </button>
-              ))}
-            </div>
-          </section>
-          <section className="cn-study-strip">
-            <div className="cn-study-icon">
-              <BookOpen size={22} />
-            </div>
-            <div>
-              <p className="cn-kicker">KNOW THE TEXT. OWN THE ARGUMENT.</p>
-              <h2>Your reading check starts here.</h2>
-              <p>
-                72 questions, passage-backed explanations, and practice that returns to what you
-                miss.
-              </p>
-            </div>
-            <button className="cn-button cn-secondary" onClick={() => openStudy('practice')}>
-              Open study room <ArrowRight size={16} />
-            </button>
-            <div className="cn-mastery-tiny">
-              <strong>
-                {mastered}
-                <span>/72</span>
-              </strong>
-              <small>CONCEPTS REINFORCED</small>
-            </div>
-          </section>
-          <footer className="cn-footer">
-            <a href="#course">
-              <ArrowLeft size={13} /> Back to the ELA III collection
-            </a>
-            <p>
-              Based on the full 1849 essay. Original dialogue and symbolic scenery interpret the
-              text.
-            </p>
-            <span>EXPLORE · QUESTION · UNDERSTAND</span>
-          </footer>
-        </>
+          <p className="cn-title-credit">An adaptation of the 1849 essay</p>
+        </div>
       ) : (
         <div className="cn-game-shell">
           <World
@@ -645,177 +534,111 @@ export default function ConcordCampaign() {
             paused={blocked}
             reduced={save.reduced}
             onInspect={inspect}
-            onNear={setNear}
+            initialPose={positions.current[playAct]}
+            onPosition={(x, z, yaw, pitch) => {
+              positions.current[playAct] = { x, z, yaw, pitch };
+            }}
           />
           <header className="cn-game-header">
-            <button
-              className="cn-game-title"
-              onClick={() => {
-                setView('home');
-                setPaused(false);
-              }}
-              aria-label="Return to Concord title screen"
-            >
-              <Moon size={22} />
-              <span>
-                ONE NIGHT<small>IN CONCORD</small>
-              </span>
+            <button onClick={() => setPaused(true)} aria-label="Pause game">
+              Pause <kbd>Esc</kbd>
             </button>
-            <div className="cn-act-heading">
-              <span className="cn-kicker">
-                ACT 0{playAct + 1} · {act.time}
-              </span>
-              <h1>{act.name}</h1>
-            </div>
-            <div className="cn-game-tools">
-              <button onClick={() => openStudy('journal')} aria-label="Open evidence journal">
-                <BookOpen size={19} />
-                <span>{save.collected.length}/12</span>
-              </button>
-              <button
-                onClick={() => setSave((s) => ({ ...s, music: !s.music }))}
-                aria-label={save.music ? 'Mute ambience' : 'Enable ambience'}
-              >
-                {save.music ? <Volume2 size={19} /> : <VolumeX size={19} />}
-              </button>
-              <button onClick={() => setPaused(true)} aria-label="Pause game">
-                <Pause size={20} />
-              </button>
-            </div>
+            <button onClick={() => openStudy('journal')} aria-label="Open evidence journal">
+              Notebook <kbd>J</kbd>
+            </button>
           </header>
-          <aside className="cn-objective">
-            <p className="cn-kicker">
-              <Compass size={13} /> {act.place.toUpperCase()}
-            </p>
-            <h2>
-              {save.debates.includes(playAct)
-                ? 'A conviction defended.'
-                : found === 3
-                  ? 'An argument awaits.'
-                  : 'Follow your conscience.'}
-            </h2>
+          <div className="cn-chapter-caption" key={playAct}>
             <p>
-              {save.debates.includes(playAct)
-                ? 'This act is complete. Continue your journey, or revisit the argument.'
-                : found === 3
-                  ? 'Your evidence is gathered. Put it to work in a debate.'
-                  : act.goal}
+              {['I', 'II', 'III', 'IV'][playAct]} · {act.time}
             </p>
-            <div className="cn-clue-list">
-              {cards.map((e) => (
-                <div key={e.id} className={save.collected.includes(e.id) ? 'found' : ''}>
-                  <span>{save.collected.includes(e.id) ? <Check size={12} /> : <i />}</span>
-                  {save.collected.includes(e.id) ? e.title : 'Undiscovered evidence'}
-                </div>
-              ))}
-            </div>
-            {found === 3 &&
-              (save.debates.includes(playAct) ? (
+            <h1>{act.name}</h1>
+          </div>
+          {found === 3 && !blocked && (
+            <div className="cn-ready-action">
+              {save.debates.includes(playAct) ? (
                 <>
-                  <button className="cn-button cn-primary" onClick={continueJourney}>
+                  <button className="cn-button" onClick={continueJourney}>
                     {playAct === 3
                       ? 'See your journey'
                       : `Continue to ${acts[playAct + 1].time.toLowerCase()}`}{' '}
-                    <ArrowRight size={16} />
+                    →
                   </button>
-                  <button className="cn-text-button cn-block" onClick={() => setDebate(true)}>
-                    Replay this debate <RotateCcw size={12} />
+                  <button className="cn-text-button" onClick={() => setDebate(true)}>
+                    Revisit the conversation
                   </button>
                 </>
               ) : (
-                <button className="cn-button cn-primary" onClick={() => setDebate(true)}>
-                  Enter the debate <ArrowRight size={16} />
+                <button className="cn-button" onClick={() => setDebate(true)}>
+                  Enter the debate →
                 </button>
-              ))}
-          </aside>
-          <div className="cn-location-pill">
-            <i />
-            {act.time} <span>·</span> {near ? `Near ${near}` : act.place}
-          </div>
-          <div className="cn-game-bottom">
-            <span>
-              <kbd>W A S D</kbd> Move <i /> Drag to look <i />
-              <kbd>E</kbd> Inspect <i />
-              <kbd>Esc</kbd> Pause
-            </span>
-            <button onClick={() => openStudy('practice')}>
-              Reading practice <ArrowRight size={14} />
-            </button>
-          </div>
+              )}
+            </div>
+          )}
           {intro && (
             <Modal title={`Act ${playAct + 1}: ${act.name}`} onClose={() => setIntro(false)}>
-              <p className="cn-kicker">
-                ACT 0{playAct + 1} · {act.place.toUpperCase()}
+              <p className="cn-margin-note">
+                {['I', 'II', 'III', 'IV'][playAct]} · {act.time}
               </p>
-              <h2 className="cn-story-title">
-                {act.name}
-                <span>.</span>
-              </h2>
-              <p className="cn-story-subtitle">{act.subtitle}</p>
+              <h2>{act.name}</h2>
               <p className="cn-story-text">{act.intro}</p>
-              <div className="cn-tutorial">
-                <Compass size={20} />
-                <p>
-                  Walk with WASD or the arrow keys. Drag the scene to look around. Approach the
-                  amber markers and press E or Inspect. Touch controls are available on phones.
+              {playAct === 0 && (
+                <p className="cn-control-lesson">
+                  <span>
+                    <kbd>W A S D</kbd> walk
+                  </span>
+                  <span>Drag to look</span>
+                  <span>
+                    <kbd>E</kbd> examine
+                  </span>
+                  <span>
+                    <kbd>H</kbd> directions
+                  </span>
                 </p>
-              </div>
+              )}
               <button className="cn-button cn-primary" onClick={() => setIntro(false)}>
-                Step into the scene <ArrowRight size={16} />
+                Step into the scene
               </button>
-              <p className="cn-adaptation">
-                Scene dialogue and geography are an original adaptation. Evidence cards quote the
-                essay.
-              </p>
             </Modal>
           )}
           {inspected && (
             <Modal title={inspected.title} onClose={() => setInspected(null)}>
-              <p className="cn-kicker">
-                EVIDENCE {inspected.id.slice(1)} / 12 · ADDED TO YOUR JOURNAL
+              <p className="cn-margin-note">
+                {hotspots.find((h) => h.id === inspected.id)?.label.replace(/^The /, '')}
               </p>
-              <h2>{inspected.title}</h2>
               <blockquote className="cn-quotation">“{inspected.quote}”</blockquote>
-              <p className="cn-quote-author">HENRY DAVID THOREAU · ¶{inspected.paragraph}</p>
-              <div className="cn-meaning">
-                <p className="cn-kicker">WHAT THIS ESTABLISHES</p>
-                <p>{inspected.meaning}</p>
-              </div>
+              <p className="cn-source-credit">Thoreau · paragraph {inspected.paragraph}</p>
+              <p className="cn-meaning">{inspected.meaning}</p>
               <div className="cn-modal-actions">
                 <button
-                  className="cn-button cn-secondary"
+                  className="cn-text-button"
                   onClick={() => setParagraph(inspected.paragraph)}
                 >
-                  Read the passage <BookOpen size={15} />
+                  Read the passage
                 </button>
                 <button className="cn-button cn-primary" onClick={() => setInspected(null)}>
-                  Keep exploring <ArrowRight size={16} />
+                  Keep exploring
                 </button>
               </div>
             </Modal>
           )}
           {debate && (
             <DebateEncounter
-              key={playAct}
               debate={debates[playAct]}
-              onClose={() => setDebate(false)}
               onWin={finishDebate}
               onResolved={recordDebate}
+              onClose={() => setDebate(false)}
             />
           )}
           {actComplete && (
             <Modal title="Act complete" onClose={() => setActComplete(false)}>
-              <div className="cn-seal">
-                <Feather size={29} />
-              </div>
-              <p className="cn-kicker">ACT 0{playAct + 1} COMPLETE</p>
-              <h2>{playAct === 3 ? 'Morning comes.' : 'Carry the argument forward.'}</h2>
+              <p className="cn-margin-note">{act.place}</p>
+              <h2>{playAct === 3 ? 'Morning in Concord' : 'Later that night'}</h2>
               <p className="cn-story-text">{act.ending}</p>
               <button className="cn-button cn-primary" onClick={continueJourney}>
                 {playAct === 3
                   ? 'See your journey'
-                  : `Continue to ${acts[playAct + 1]?.time.toLowerCase()}`}{' '}
-                <ArrowRight size={16} />
+                  : `Continue to ${acts[playAct + 1].time.toLowerCase()}`}{' '}
+                →
               </button>
               <button
                 className="cn-text-button cn-block"
@@ -824,72 +647,55 @@ export default function ConcordCampaign() {
                   openStudy('practice');
                 }}
               >
-                Practice before moving on <BookOpen size={14} />
+                Practice before moving on
               </button>
             </Modal>
           )}
           {paused && (
-            <Modal title="The night can wait" onClose={() => setPaused(false)}>
-              <p className="cn-kicker">PAUSED · PROGRESS SAVED</p>
-              <h2>The night can wait.</h2>
-              <p className="cn-story-text">Take a breath. Your place in the argument is safe.</p>
-              <div className="cn-pause-actions">
-                <button className="cn-button cn-primary" onClick={() => setPaused(false)}>
-                  <Play size={16} /> Return to the night
-                </button>
+            <Modal title="Paused" onClose={() => setPaused(false)}>
+              <h2>Paused</h2>
+              <nav className="cn-pause-menu">
+                <button onClick={() => setPaused(false)}>Resume</button>
                 <button
-                  className="cn-button cn-secondary"
                   onClick={() => {
                     setPaused(false);
                     openStudy('practice');
                   }}
                 >
-                  <BookOpen size={16} /> Open study room
+                  Reading practice
                 </button>
                 <button
-                  className="cn-button cn-secondary"
                   onClick={() => {
                     setPaused(false);
                     setSettings(true);
                   }}
                 >
-                  <Settings size={16} /> Settings
+                  Options
                 </button>
                 <button
-                  className="cn-text-button"
                   onClick={() => {
                     setPaused(false);
                     setView('home');
                   }}
                 >
-                  <ArrowLeft size={15} /> Return to title
+                  Return to title
                 </button>
-              </div>
+              </nav>
             </Modal>
           )}
         </div>
       )}
-      {storageError && (
-        <p className="cn-storage" role="alert">
-          Browser storage is unavailable. This session works, but progress cannot be saved on this
-          device.
-        </p>
-      )}
       {settings && (
         <Modal
-          title="Settings"
+          title="Options"
           onClose={() => {
             setSettings(false);
             setConfirmReset(false);
           }}
         >
-          <p className="cn-kicker">MAKE THE NIGHT YOUR OWN</p>
-          <h2>Settings</h2>
+          <h2>Options</h2>
           <label className="cn-toggle">
-            <span>
-              <strong>Night ambience</strong>
-              <small>Original, quiet instrumental tones</small>
-            </span>
+            <span>Night ambience</span>
             <input
               type="checkbox"
               checked={save.music}
@@ -897,35 +703,69 @@ export default function ConcordCampaign() {
             />
           </label>
           <label className="cn-toggle">
-            <span>
-              <strong>Reduced motion</strong>
-              <small>Still title camera and gentler movement</small>
-            </span>
+            <span>Reduced motion</span>
             <input
               type="checkbox"
               checked={save.reduced}
               onChange={(e) => setSave((s) => ({ ...s, reduced: e.target.checked }))}
             />
           </label>
-          <p className="cn-setting-note">
-            Progress is stored on this browser. Practice and the complete essay are available at any
-            time. Internal paragraph numbers identify the bundled text, not your teacher’s edition.
-          </p>
+          {save.debates.length > 0 && (
+            <details className="cn-options-section">
+              <summary>Return to a chapter</summary>
+              <div className="cn-chapter-menu">
+                {acts.map((a, i) => (
+                  <button
+                    key={a.name}
+                    disabled={i > save.act}
+                    onClick={() => {
+                      setSettings(false);
+                      begin(i);
+                    }}
+                  >
+                    {['I', 'II', 'III', 'IV'][i]}. {a.name}
+                  </button>
+                ))}
+              </div>
+            </details>
+          )}
+          <details className="cn-options-section">
+            <summary>Controls &amp; source</summary>
+            <p>
+              WASD or arrows to walk. Drag to look around, or use Q/R to turn. E examines nearby
+              objects. H shows directions. J opens the notebook. Escape pauses.
+            </p>
+            <p>
+              This game adapts Thoreau’s essay into four scenes. The conversations and village are
+              fictional; quoted passages and reading questions refer to the complete essay.
+              Paragraph numbers belong to the bundled text.
+            </p>
+            <button
+              className="cn-text-button"
+              onClick={() => {
+                setSettings(false);
+                openStudy('source');
+              }}
+            >
+              Read Civil Disobedience
+            </button>
+          </details>
           <div className="cn-reset-area">
             {confirmReset ? (
               <>
-                <p>Erase this campaign’s discoveries, debates, and quiz history?</p>
+                <p>Erase your Concord story progress and reading history?</p>
                 <div className="cn-modal-actions">
-                  <button className="cn-button cn-secondary" onClick={() => setConfirmReset(false)}>
+                  <button className="cn-button" onClick={() => setConfirmReset(false)}>
                     Keep my progress
                   </button>
                   <button
                     className="cn-button cn-danger"
                     onClick={() => {
+                      positions.current = {};
                       setSave(freshSave());
                       setPlayAct(0);
-                      setSettings(false);
                       setConfirmReset(false);
+                      setSettings(false);
                       setView('home');
                     }}
                   >
@@ -935,7 +775,7 @@ export default function ConcordCampaign() {
               </>
             ) : (
               <button className="cn-text-button" onClick={() => setConfirmReset(true)}>
-                <RotateCcw size={14} /> Reset Concord progress
+                Reset Concord progress
               </button>
             )}
           </div>
@@ -943,27 +783,13 @@ export default function ConcordCampaign() {
       )}
       {ending && (
         <Modal title="Your night in Concord" onClose={() => setEnding(false)}>
-          <div className="cn-seal">
-            <Moon size={34} />
-          </div>
-          <p className="cn-kicker">ONE NIGHT IN CONCORD · COMPLETE</p>
-          <h2>
-            The argument
-            <br />
-            <em>travels with you.</em>
-          </h2>
-          <p className="cn-story-text">
-            Twelve pieces of evidence. Four debates. One question that refuses to stay behind a
-            locked door: what will you do with what you believe?
+          <p className="cn-margin-note">The end</p>
+          <h2>Morning in Concord</h2>
+          <p className="cn-story-text">{acts[3].ending}</p>
+          <p>
+            You have collected twelve passages and completed four conversations. The reading
+            notebook is available whenever you want to return to the essay.
           </p>
-          <div className="cn-victory-stats">
-            <span>
-              <strong>12 / 12</strong>Evidence discovered
-            </span>
-            <span>
-              <strong>4 / 4</strong>Debates resolved
-            </span>
-          </div>
           <button
             className="cn-button cn-primary"
             onClick={() => {
@@ -971,13 +797,14 @@ export default function ConcordCampaign() {
               openStudy('practice');
             }}
           >
-            Take the practice reading check <ArrowRight size={16} />
+            Open reading practice
           </button>
         </Modal>
       )}
       {paragraph !== null && (
         <SourcePanel paragraph={paragraph} onClose={() => setParagraph(null)} />
       )}
+      {warning}
     </main>
   );
 }

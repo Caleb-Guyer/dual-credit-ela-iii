@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { ConcordWorld, hotspots, type Hotspot } from './scene';
 import { clueBearing, nearestClue, spawns } from './navigation';
-import ConcordArt from './Art';
+import Frontispiece from './Frontispiece';
 export { hotspots } from './scene';
 
 export type WorldProps = {
@@ -12,17 +12,19 @@ export type WorldProps = {
   onInspect: (id: string) => void;
   onNear?: (label: string | null) => void;
   onReady?: (ready: boolean) => void;
-  onPosition?: (x: number, z: number, yaw: number) => void;
+  onPosition?: (x: number, z: number, yaw: number, pitch?: number) => void;
+  initialPose?: { x: number; z: number; yaw: number; pitch?: number };
   preview?: boolean;
 };
 
 export default function World(props: WorldProps) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const worldRef = useRef<ConcordWorld | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null),
+    worldRef = useRef<ConcordWorld | null>(null);
   const propsRef = useRef(props);
   propsRef.current = props;
-  const [near, setNear] = useState<Hotspot | null>(null);
-  const [error, setError] = useState(false);
+  const [near, setNear] = useState<Hotspot | null>(null),
+    [error, setError] = useState(false),
+    [directions, setDirections] = useState(false);
   const [position, setPosition] = useState(() => spawns[props.act] ?? spawns[0]);
   const drag = useRef<{ x: number; y: number; id: number } | null>(null);
   useEffect(() => {
@@ -30,6 +32,7 @@ export default function World(props: WorldProps) {
     if (!canvas) return;
     setError(false);
     setNear(null);
+    setDirections(false);
     setPosition(spawns[props.act] ?? spawns[0]);
     const lost = (event: Event) => {
       event.preventDefault();
@@ -38,7 +41,7 @@ export default function World(props: WorldProps) {
     };
     canvas.addEventListener('webglcontextlost', lost);
     try {
-      const world = new ConcordWorld(
+      worldRef.current = new ConcordWorld(
         canvas,
         props.act,
         !!props.preview,
@@ -49,13 +52,18 @@ export default function World(props: WorldProps) {
         },
         (x, z, yaw) => {
           setPosition({ x, z, yaw });
-          propsRef.current.onPosition?.(x, z, yaw);
+          propsRef.current.onPosition?.(x, z, yaw, worldRef.current?.pitch ?? 0);
         },
       );
-      worldRef.current = world;
+      const pose = propsRef.current.initialPose;
+      if (pose && !props.preview) {
+        worldRef.current.camera.position.set(pose.x, 1.68, pose.z);
+        worldRef.current.yaw = pose.yaw;
+        worldRef.current.pitch = pose.pitch ?? -0.03;
+      }
       propsRef.current.onReady?.(true);
     } catch (cause) {
-      console.warn('Concord 3D could not initialize; showing the accessible scene.', cause);
+      console.warn('Concord 3D could not initialize.', cause);
       setError(true);
       propsRef.current.onReady?.(false);
     }
@@ -70,6 +78,11 @@ export default function World(props: WorldProps) {
         (e.target as HTMLElement)?.isContentEditable
       )
         return;
+      if (e.code === 'KeyH' && !e.repeat) {
+        e.preventDefault();
+        setDirections((v) => !v);
+        return;
+      }
       if (
         [
           'KeyW',
@@ -99,8 +112,8 @@ export default function World(props: WorldProps) {
         propsRef.current.onInspect(worldRef.current.near.id);
       else worldRef.current?.keys.add(e.code);
     };
-    const up = (e: KeyboardEvent) => worldRef.current?.keys.delete(e.code);
-    const clear = () => worldRef.current?.keys.clear();
+    const up = (e: KeyboardEvent) => worldRef.current?.keys.delete(e.code),
+      clear = () => worldRef.current?.keys.clear();
     window.addEventListener('keydown', down);
     window.addEventListener('keyup', up);
     window.addEventListener('blur', clear);
@@ -109,7 +122,15 @@ export default function World(props: WorldProps) {
       window.removeEventListener('keydown', down);
       window.removeEventListener('keyup', up);
       window.removeEventListener('blur', clear);
-      worldRef.current?.dispose();
+      const world = worldRef.current;
+      if (world && !props.preview)
+        propsRef.current.onPosition?.(
+          world.camera.position.x,
+          world.camera.position.z,
+          world.yaw,
+          world.pitch,
+        );
+      world?.dispose();
       worldRef.current = null;
     };
   }, [props.act, props.preview]);
@@ -122,9 +143,6 @@ export default function World(props: WorldProps) {
       return () => cancelAnimationFrame(frame);
     }
   }, [props.paused, props.preview, error]);
-  const inspect = () => {
-    if (!props.paused && near && !props.collected.includes(near.id)) props.onInspect(near.id);
-  };
   const tracker = nearestClue(props.act, props.collected, position.x, position.z);
   const bearing = tracker ? clueBearing(position.x, position.z, position.yaw, tracker.point) : 0;
   const direction =
@@ -141,7 +159,7 @@ export default function World(props: WorldProps) {
         ref={canvasRef}
         aria-label={
           props.preview
-            ? 'Cinematic view of Concord at night'
+            ? 'Concord at night'
             : props.act === 2
               ? 'Explore the jail cell in 3D'
               : 'Explore Concord in 3D'
@@ -174,27 +192,17 @@ export default function World(props: WorldProps) {
         }}
       />
       {error && props.preview && (
-        <div
-          className="cn-preview-fallback"
-          style={{ position: 'absolute', inset: 0, background: '#172f3b' }}
-        >
-          <ConcordArt />
+        <div className="cn-preview-fallback">
+          <Frontispiece />
         </div>
       )}
       {error && !props.preview && (
-        <div
-          className="cn-world-fallback"
-          role="status"
-          style={{
-            position: 'absolute',
-            inset: 0,
-            padding: '100px 24px',
-            background: 'linear-gradient(140deg,#193541,#1c282b)',
-            overflow: 'auto',
-          }}
-        >
+        <div className="cn-world-fallback" role="status">
           <h2>Explore the scene</h2>
-          <p>Your device could not open the 3D view. Every encounter remains available here.</p>
+          <p>
+            This browser could not open the 3D view. You can still examine each object and continue
+            the story.
+          </p>
           {hotspots
             .filter((h) => h.act === props.act)
             .map((h) => (
@@ -211,111 +219,44 @@ export default function World(props: WorldProps) {
       )}
       {!props.preview && !props.paused && !error && (
         <>
-          {tracker && (
+          {directions && tracker && (
             <div
               className="cn-tracker"
+              role="status"
               aria-label={`Next evidence: ${tracker.point.label}, ${Math.round(tracker.distance)} metres, ${direction.toLowerCase()}`}
-              style={{
-                position: 'absolute',
-                bottom: 116,
-                right: 24,
-                display: 'flex',
-                alignItems: 'center',
-                gap: 12,
-                maxWidth: 'min(275px,calc(100% - 48px))',
-                padding: '12px 15px',
-                background: '#102832d9',
-                border: '1px solid #aec0aa45',
-                borderRadius: 6,
-                color: '#e5dec7',
-                pointerEvents: 'none',
-                backdropFilter: 'blur(8px)',
-              }}
             >
               <span
+                className="cn-tracker-arrow"
                 aria-hidden="true"
-                style={{
-                  display: 'grid',
-                  placeItems: 'center',
-                  width: 31,
-                  height: 31,
-                  flexShrink: 0,
-                  border: '1px solid #d4b77b80',
-                  borderRadius: '50%',
-                  color: '#e1bd80',
-                  fontSize: 22,
-                  transform: `rotate(${(bearing * 180) / Math.PI}deg)`,
-                }}
+                style={{ transform: `rotate(${(bearing * 180) / Math.PI}deg)` }}
               >
                 ↑
               </span>
               <div>
-                <span
-                  style={{
-                    display: 'block',
-                    fontSize: 7,
-                    letterSpacing: '1.5px',
-                    color: '#b4c7bb',
-                    marginBottom: 6,
-                  }}
-                >
-                  NEXT EVIDENCE · {Math.round(tracker.distance)} M
-                </span>
-                <strong style={{ fontWeight: 400, fontSize: 11, lineHeight: 1.4 }}>
-                  {tracker.point.label}
-                </strong>
-                <span style={{ display: 'block', fontSize: 9, color: '#b4c7bb', marginTop: 5 }}>
-                  {tracker.distance < 3.25 ? 'Within reach · press E or Inspect' : direction}
-                </span>
+                <strong>{tracker.point.label.replace(/^The /, '')}</strong>
+                <small>
+                  {Math.round(tracker.distance)} metres ·{' '}
+                  {tracker.distance < 3.25 ? 'Within reach' : direction}
+                </small>
               </div>
             </div>
           )}
-          <div
-            className="cn-crosshair"
-            aria-hidden="true"
-            style={{
-              position: 'absolute',
-              top: '50%',
-              left: '50%',
-              width: 4,
-              height: 4,
-              border: '1px solid #f1e5c5a0',
-              borderRadius: '50%',
-              pointerEvents: 'none',
-            }}
-          />
           {near && !props.collected.includes(near.id) && (
-            <button
-              className="cn-inspect"
-              onClick={inspect}
-              style={{
-                position: 'absolute',
-                bottom: '24%',
-                left: '50%',
-                transform: 'translateX(-50%)',
-                background: '#152b32ed',
-                border: '1px solid #d8bb82',
-                borderRadius: 7,
-                padding: '13px 20px',
-                color: '#f1e4c8',
-                whiteSpace: 'nowrap',
-              }}
-            >
-              <kbd>E</kbd> {near.label} <span aria-hidden="true">↗</span>
+            <button className="cn-inspect" onClick={() => props.onInspect(near.id)}>
+              <kbd>E</kbd>
+              {near.label}
             </button>
           )}
-          <div
-            className="cn-world-controls"
-            aria-label="Movement controls"
-            style={{
-              position: 'absolute',
-              bottom: 24,
-              left: 24,
-              display: 'grid',
-              gridTemplateColumns: 'repeat(3,42px)',
-              gap: 5,
-            }}
-          >
+          {tracker && (
+            <button
+              className="cn-directions-toggle"
+              aria-expanded={directions}
+              onClick={() => setDirections((v) => !v)}
+            >
+              {directions ? 'Hide directions' : 'Directions'} <kbd>H</kbd>
+            </button>
+          )}
+          <div className="cn-world-controls" aria-label="Movement controls">
             {[
               ['KeyW', '↑', 'Walk forward', 2],
               ['KeyA', '←', 'Walk left', 1],
@@ -325,18 +266,7 @@ export default function World(props: WorldProps) {
               <button
                 key={code}
                 aria-label={String(label)}
-                style={{
-                  gridColumn: Number(column),
-                  gridRow: i === 0 ? 1 : 2,
-                  width: 42,
-                  height: 42,
-                  background: '#142a34c9',
-                  border: '1px solid #a1b5b455',
-                  borderRadius: 6,
-                  color: '#e2dfcd',
-                  touchAction: 'none',
-                  userSelect: 'none',
-                }}
+                style={{ gridColumn: Number(column), gridRow: i === 0 ? 1 : 2 }}
                 onPointerDown={(e) => {
                   e.preventDefault();
                   e.currentTarget.setPointerCapture(e.pointerId);

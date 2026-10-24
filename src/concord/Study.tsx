@@ -1,20 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import {
-  ArrowLeft,
-  ArrowRight,
-  BookOpen,
-  Check,
-  CheckCircle2,
-  ChevronDown,
-  ExternalLink,
-  FileText,
-  RotateCcw,
-  Search,
-  Target,
-  X,
-} from 'lucide-react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { evidence, passage, questions, source, topics, type Question } from './data';
 import type { ConcordSave } from './save';
+import './study.css';
 
 export function shuffle<T>(items: readonly T[], random: () => number = Math.random): T[] {
   const result = [...items];
@@ -75,10 +62,10 @@ type Session = {
 };
 
 const modeNames: Record<Mode, string> = {
-  practice: 'Focused practice',
-  exam: 'Reading-check rehearsal',
-  missed: 'Review missed questions',
-  all: 'Complete reading review',
+  practice: 'Practice',
+  exam: 'Quiz rehearsal',
+  missed: 'Missed questions',
+  all: 'Complete review',
 };
 
 export default function Study({
@@ -229,315 +216,238 @@ export default function Study({
 
   const active = session && !session.finished;
   return (
-    <section className="cn-study">
-      <header className="cn-study-header">
-        <button
-          className="cn-link"
-          onClick={() => {
-            if (active) setConfirmExit(true);
-            else if (session) setSession(null);
-            else onBack();
-          }}
-        >
-          <ArrowLeft size={16} /> {session ? 'Study desk' : 'Back to Concord'}
-        </button>
-        <span className="cn-eyebrow">THE STUDY DESK · HENRY DAVID THOREAU</span>
-      </header>
-      {!session && (
-        <>
-          <div className="cn-study-intro">
-            <div>
-              <p className="cn-eyebrow">KNOW THE WORDS. UNDERSTAND THE ARGUMENT.</p>
-              <h1>Prepare with purpose.</h1>
-              <p>
-                Close reading, clear explanations, and a place for every question you miss.
-                Available at any point in the story.
-              </p>
+    <section className="cn-study-page">
+      <div className="cn-study">
+        <header className="cn-study-header">
+          <button
+            className="cn-link"
+            onClick={() => {
+              if (active) setConfirmExit(true);
+              else if (session) setSession(null);
+              else onBack();
+            }}
+          >
+            ← {session ? 'Notebook' : 'Back to game'}
+          </button>
+          <span>One Night in Concord</span>
+        </header>
+        {!session && (
+          <>
+            <div className="cn-study-intro">
+              <h1>Reading notebook</h1>
+              <p>Read a passage, test what you remember, or return to a question you missed.</p>
             </div>
-            <BookOpen size={44} strokeWidth={1} aria-hidden="true" />
-          </div>
-          <div className="cn-study-stats" aria-label="Reading progress">
-            <div>
-              <strong>
-                {seen}
-                <span> / {questions.length}</span>
-              </strong>
-              <small>QUESTIONS EXPLORED</small>
-            </div>
-            <div>
-              <strong>{secure}</strong>
-              <small>SECURE · 2 CORRECT IN A ROW</small>
-            </div>
-            <div>
-              <strong>{save.missed.length}</strong>
-              <small>READY TO REVISIT</small>
-            </div>
-            <div>
-              <strong>{save.exams.length ? `${bestExam}%` : '—'}</strong>
-              <small>BEST REHEARSAL</small>
-            </div>
-          </div>
-          <nav className="cn-tabs" aria-label="Study sections">
-            {(
-              [
-                ['practice', 'Practice', Target],
-                ['source', 'Read the essay', FileText],
-                ['journal', 'Evidence journal', BookOpen],
-              ] as const
-            ).map(([id, label, Icon]) => (
-              <button
-                key={id}
-                className={tab === id ? 'active' : ''}
-                aria-current={tab === id ? 'page' : undefined}
-                onClick={() => setTab(id)}
-              >
-                <Icon size={16} /> {label}
-              </button>
-            ))}
-          </nav>
-          {tab === 'practice' && (
-            <>
-              <div className="cn-study-filter">
-                <label htmlFor="cn-topic">Focus your practice</label>
-                <select
-                  id="cn-topic"
-                  value={topic}
-                  onChange={(event) => setTopic(event.target.value)}
+            <nav className="cn-tabs" aria-label="Study sections">
+              {(
+                [
+                  ['practice', 'Practice'],
+                  ['source', 'The essay'],
+                  ['journal', 'Collected passages'],
+                ] as const
+              ).map(([id, label]) => (
+                <button
+                  key={id}
+                  className={tab === id ? 'active' : ''}
+                  aria-current={tab === id ? 'page' : undefined}
+                  onClick={() => setTab(id)}
                 >
-                  <option>All topics</option>
-                  {topics.map((name) => (
-                    <option key={name}>{name}</option>
-                  ))}
-                </select>
-              </div>
-              <div className="cn-practice-grid">
-                <PracticeCard
-                  icon={<Target size={24} />}
-                  label="10 QUESTIONS · FEEDBACK AS YOU GO"
-                  title="Build your understanding"
-                  description="A fresh selection that favors missed and unfamiliar questions. Find out why every answer works or fails."
-                  action="Start focused practice"
-                  onClick={() => start('practice')}
-                  primary
-                />
-                <PracticeCard
-                  icon={<FileText size={24} />}
-                  label="24 QUESTIONS · ANSWERS AT THE END"
-                  title="Rehearse the reading check"
-                  description="A balanced mix from the full essay. Choose carefully, finish the session, then inspect your complete report."
-                  action="Begin rehearsal"
-                  onClick={() => start('exam')}
-                />
-                <PracticeCard
-                  icon={<RotateCcw size={24} />}
-                  label={`${save.missed.length} QUESTIONS IN YOUR REVIEW QUEUE`}
-                  title={
-                    save.missed.length ? 'Turn mistakes into progress' : 'A clear review queue'
-                  }
-                  description={
-                    save.missed.length
-                      ? 'Return to questions you have missed. A correct response removes an item from this queue.'
-                      : 'Missed questions will appear here. Try focused practice to find your next learning opportunity.'
-                  }
-                  action={save.missed.length ? 'Review missed questions' : 'Try focused practice'}
-                  onClick={() => start(save.missed.length ? 'missed' : 'practice')}
-                />
-                <PracticeCard
-                  icon={<BookOpen size={24} />}
-                  label="NO TIME LIMIT · FULL EXPLANATIONS"
-                  title="Leave no passage unexplored"
-                  description="Work through every question in your selected topic. Pause to read the original essay whenever you need it."
-                  action="Review all questions"
-                  onClick={() => start('all')}
-                />
-              </div>
-              <div className="cn-study-note">
-                <BookOpen size={18} />
-                <p>
-                  Coverage follows the complete 1849 essay. Your class may use an excerpt. Match
-                  your teacher’s assigned text and notes before your quiz; rehearsal scores measure
-                  this question bank.
-                </p>
-              </div>
-              <div className="cn-topic-progress">
-                <h2>Your reading map</h2>
-                <p>A topic becomes secure through accurate recall, not through story completion.</p>
-                {topics.map((name) => {
-                  const group = questions.filter((q) => q.topic === name);
-                  const mastered = group.filter(
-                    (q) => (save.mastery[q.id]?.streak ?? 0) >= 2,
-                  ).length;
-                  const touched = group.filter((q) => (save.mastery[q.id]?.seen ?? 0) > 0).length;
-                  return (
-                    <div className="cn-topic-row" key={name}>
-                      <span>{name}</span>
-                      <div
-                        className="cn-meter"
-                        role="progressbar"
-                        aria-label={`${name} secure questions`}
-                        aria-valuenow={mastered}
-                        aria-valuemin={0}
-                        aria-valuemax={group.length}
-                      >
-                        <i
-                          style={{
-                            width: `${group.length ? (mastered / group.length) * 100 : 0}%`,
-                          }}
-                        />
-                      </div>
-                      <small>
-                        {mastered}/{group.length} secure · {touched} seen
-                      </small>
-                    </div>
-                  );
-                })}
-              </div>
-            </>
-          )}
-          {tab === 'source' && <SourceReader />}
-          {tab === 'journal' && (
-            <Journal collected={save.collected} onSource={setSourceParagraph} />
-          )}
-        </>
-      )}
-      {session &&
-        !session.finished &&
-        (() => {
-          const round = session.rounds[session.index];
-          const recorded = session.answers[session.index];
-          const reveal = !!recorded && session.mode !== 'exam';
-          return (
-            <div className="cn-question-session">
-              <div className="cn-question-meta">
-                <span>{modeNames[session.mode]}</span>
-                <span>
-                  {session.index + 1} / {session.rounds.length}
-                </span>
-              </div>
-              <div className="cn-meter">
-                <i
-                  style={{ width: `${(session.answers.length / session.rounds.length) * 100}%` }}
-                />
-              </div>
-              <p className="cn-eyebrow">{round.question.topic}</p>
-              <h1 tabIndex={-1} ref={heading}>
-                {round.question.prompt}
-              </h1>
-              <div className="cn-quiz-options" role="group" aria-label="Answer choices">
-                {round.order.map((original, index) => (
-                  <button
-                    key={`${round.question.id}-${original}`}
-                    disabled={!!recorded}
-                    className={`cn-quiz-option ${recorded?.selected === original ? 'selected' : ''} ${reveal && original === round.question.answer ? 'correct' : ''} ${reveal && recorded?.selected === original && original !== round.question.answer ? 'incorrect' : ''}`}
-                    onClick={() => answer(original)}
+                  {label}
+                </button>
+              ))}
+            </nav>
+            {tab === 'practice' && (
+              <>
+                <div className="cn-study-filter">
+                  <label htmlFor="cn-topic">Topic</label>
+                  <select
+                    id="cn-topic"
+                    value={topic}
+                    onChange={(event) => setTopic(event.target.value)}
                   >
-                    <kbd>{index + 1}</kbd>
-                    <span>{round.question.options[original]}</span>
-                    {reveal && original === round.question.answer && (
-                      <CheckCircle2 size={20} aria-label="Correct answer" />
-                    )}
+                    <option>All topics</option>
+                    {topics.map((name) => (
+                      <option key={name}>{name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="cn-practice-menu">
+                  <button
+                    className="cn-practice-choice"
+                    aria-label="Practice ten questions"
+                    onClick={() => start('practice')}
+                  >
+                    <span>
+                      <strong>Practice ten questions</strong>
+                      <small>Read the explanation after each answer.</small>
+                    </span>
+                    <span aria-hidden="true">→</span>
                   </button>
-                ))}
-              </div>
-              {recorded && (
-                <div aria-live="polite" className="cn-answer-feedback">
-                  {reveal ? (
-                    <AnswerExplanation answer={recorded} onSource={setSourceParagraph} />
-                  ) : (
-                    <p>
-                      <Check size={17} /> Answer recorded. Explanations will appear in your final
-                      report.
-                    </p>
-                  )}
-                  <button className="cn-button primary" onClick={nextQuestion}>
-                    {session.index === session.rounds.length - 1
-                      ? 'See my report'
-                      : 'Next question'}
-                    <ArrowRight size={17} />
+                  <button
+                    className="cn-practice-choice"
+                    aria-label="Rehearse the quiz"
+                    onClick={() => start('exam')}
+                  >
+                    <span>
+                      <strong>Rehearse the quiz</strong>
+                      <small>
+                        24 questions from the whole essay. Review your answers at the end.
+                      </small>
+                    </span>
+                    <span aria-hidden="true">→</span>
                   </button>
                 </div>
-              )}
-              {!recorded && (
-                <p className="cn-key-hint">
-                  Choose an answer, or use keys 1–4. There is no time limit.
+                <div className="cn-review-links">
+                  {save.missed.length ? (
+                    <button className="cn-link" onClick={() => start('missed')}>
+                      Review missed questions ({save.missed.length})
+                    </button>
+                  ) : (
+                    <span>No missed questions yet.</span>
+                  )}
+                  <button className="cn-link" onClick={() => start('all')}>
+                    Review all questions
+                  </button>
+                </div>
+                <details className="cn-progress-details">
+                  <summary>
+                    Your progress{' '}
+                    <span>
+                      {seen} of {questions.length} questions attempted
+                    </span>
+                  </summary>
+                  <p>
+                    {secure} answered correctly twice in a row.
+                    {save.exams.length ? ` Best rehearsal: ${bestExam}%.` : ''} Story progress does
+                    not affect these results.
+                  </p>
+                  <div className="cn-topic-progress">
+                    {topics.map((name) => {
+                      const group = questions.filter((q) => q.topic === name);
+                      const mastered = group.filter(
+                        (q) => (save.mastery[q.id]?.streak ?? 0) >= 2,
+                      ).length;
+                      const touched = group.filter(
+                        (q) => (save.mastery[q.id]?.seen ?? 0) > 0,
+                      ).length;
+                      return (
+                        <div className="cn-topic-row" key={name}>
+                          <span>{name}</span>
+                          <small>
+                            {mastered}/{group.length} secure · {touched} attempted
+                          </small>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </details>
+                <p className="cn-study-note">
+                  These questions cover the complete essay. If your class uses an excerpt, compare
+                  it with your assigned pages and notes.
                 </p>
-              )}
+              </>
+            )}
+            {tab === 'source' && <SourceReader />}
+            {tab === 'journal' && (
+              <Journal collected={save.collected} onSource={setSourceParagraph} />
+            )}
+          </>
+        )}
+        {session &&
+          !session.finished &&
+          (() => {
+            const round = session.rounds[session.index],
+              recorded = session.answers[session.index];
+            const reveal = !!recorded && session.mode !== 'exam';
+            return (
+              <div className="cn-question-session">
+                <div className="cn-question-meta">
+                  <span>{modeNames[session.mode]}</span>
+                  <span>
+                    Question {session.index + 1} of {session.rounds.length}
+                  </span>
+                </div>
+                <p className="cn-question-topic">{round.question.topic}</p>
+                <h1 tabIndex={-1} ref={heading}>
+                  {round.question.prompt}
+                </h1>
+                <div className="cn-quiz-options" role="group" aria-label="Answer choices">
+                  {round.order.map((original, index) => (
+                    <button
+                      key={`${round.question.id}-${original}`}
+                      disabled={!!recorded}
+                      className={`cn-quiz-option ${recorded?.selected === original ? 'selected' : ''} ${reveal && original === round.question.answer ? 'correct' : ''} ${reveal && recorded?.selected === original && original !== round.question.answer ? 'incorrect' : ''}`}
+                      onClick={() => answer(original)}
+                    >
+                      <kbd>{index + 1}</kbd>
+                      <span>{round.question.options[original]}</span>
+                      {reveal && original === round.question.answer && (
+                        <small aria-label="Correct answer">Correct</small>
+                      )}
+                    </button>
+                  ))}
+                </div>
+                {recorded ? (
+                  <div aria-live="polite" className="cn-answer-feedback">
+                    {reveal ? (
+                      <AnswerExplanation answer={recorded} onSource={setSourceParagraph} />
+                    ) : (
+                      <p>Answer recorded. You can review the explanation when you finish.</p>
+                    )}
+                    <button className="cn-button primary" onClick={nextQuestion}>
+                      {session.index === session.rounds.length - 1
+                        ? 'See my report'
+                        : 'Next question'}{' '}
+                      <span aria-hidden="true">→</span>
+                    </button>
+                  </div>
+                ) : (
+                  <p className="cn-key-hint">Choose an answer, or use keys 1–4. Take your time.</p>
+                )}
+              </div>
+            );
+          })()}
+        {session?.finished && (
+          <Results
+            session={session}
+            onSource={setSourceParagraph}
+            onAgain={() => start(session.mode)}
+            onMissed={() =>
+              start(
+                'missed',
+                session.answers
+                  .filter((a) => a.selected !== a.question.answer)
+                  .map((a) => a.question),
+              )
+            }
+            onDesk={() => setSession(null)}
+          />
+        )}
+        {sourceParagraph !== null && (
+          <SourcePanel paragraph={sourceParagraph} onClose={() => setSourceParagraph(null)} />
+        )}
+        {confirmExit && (
+          <StudyDialog title="Close this practice session?" onClose={() => setConfirmExit(false)}>
+            <p>
+              Answers already given are saved. An unfinished rehearsal does not receive a score.
+            </p>
+            <div className="cn-actions">
+              <button className="cn-button" onClick={() => setConfirmExit(false)}>
+                Keep studying
+              </button>
+              <button
+                className="cn-button primary"
+                onClick={() => {
+                  setSession(null);
+                  setConfirmExit(false);
+                }}
+              >
+                Return to notebook
+              </button>
             </div>
-          );
-        })()}
-      {session?.finished && (
-        <Results
-          session={session}
-          onSource={setSourceParagraph}
-          onAgain={() => start(session.mode)}
-          onMissed={() =>
-            start(
-              'missed',
-              session.answers
-                .filter((a) => a.selected !== a.question.answer)
-                .map((a) => a.question),
-            )
-          }
-          onDesk={() => setSession(null)}
-        />
-      )}
-      {sourceParagraph !== null && (
-        <SourcePanel paragraph={sourceParagraph} onClose={() => setSourceParagraph(null)} />
-      )}
-      {confirmExit && (
-        <StudyDialog title="Return to the study desk?" onClose={() => setConfirmExit(false)}>
-          <p>
-            Your answered questions have been saved. This unfinished session will close; a rehearsal
-            score is saved only when you finish.
-          </p>
-          <div className="cn-actions">
-            <button className="cn-button" onClick={() => setConfirmExit(false)}>
-              Keep studying
-            </button>
-            <button
-              className="cn-button primary"
-              onClick={() => {
-                setSession(null);
-                setConfirmExit(false);
-              }}
-            >
-              Return to desk
-            </button>
-          </div>
-        </StudyDialog>
-      )}
+          </StudyDialog>
+        )}
+      </div>
     </section>
-  );
-}
-
-function PracticeCard({
-  icon,
-  label,
-  title,
-  description,
-  action,
-  onClick,
-  primary = false,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  title: string;
-  description: string;
-  action: string;
-  onClick: () => void;
-  primary?: boolean;
-}) {
-  return (
-    <article className={`cn-practice-card ${primary ? 'featured' : ''}`}>
-      <div className="cn-practice-icon">{icon}</div>
-      <p className="cn-eyebrow">{label}</p>
-      <h2>{title}</h2>
-      <p>{description}</p>
-      <button className={`cn-button ${primary ? 'primary' : ''}`} onClick={onClick}>
-        {action}
-        <ArrowRight size={16} />
-      </button>
-    </article>
   );
 }
 
@@ -553,18 +463,19 @@ function AnswerExplanation({
   return (
     <div className="cn-explanation">
       <h2 className={correct ? 'cn-correct-text' : 'cn-incorrect-text'}>
-        {correct ? 'Well reasoned.' : 'A useful distinction.'}
+        {correct ? 'Correct.' : 'Not quite.'}
       </h2>
       <p>{question.explanation}</p>
-      <div className="cn-answer-reasons">
+      <details className="cn-answer-reasons">
+        <summary>Why each answer works or fails</summary>
         {order.map((option, index) => (
           <div className={option === question.answer ? 'correct' : ''} key={option}>
             <span className="cn-reason-label">
               {index + 1}
               {option === question.answer
-                ? ' · CORRECT'
+                ? ' — correct'
                 : option === selected
-                  ? ' · YOUR ANSWER'
+                  ? ' — your answer'
                   : ''}
             </span>
             <p>
@@ -572,13 +483,13 @@ function AnswerExplanation({
             </p>
           </div>
         ))}
-      </div>
+      </details>
       <details className="cn-passage-preview">
         <summary>Supporting passage · paragraph {question.paragraph}</summary>
         <blockquote>{passage(question.paragraph)}</blockquote>
       </details>
       <button className="cn-link" onClick={() => onSource(question.paragraph)}>
-        <BookOpen size={16} /> Read in context · paragraph {question.paragraph}
+        Read in context · paragraph {question.paragraph}
       </button>
     </div>
   );
@@ -601,63 +512,48 @@ function Results({
   const percent = Math.round((correct / session.answers.length) * 100);
   return (
     <div className="cn-results">
-      <div className="cn-results-hero">
-        <div className="cn-score-ring">
-          <strong>
-            {percent}
-            <small>%</small>
-          </strong>
-          <span>
-            {correct} / {session.answers.length} correct
-          </span>
-        </div>
-        <div>
-          <p className="cn-eyebrow">{modeNames[session.mode]} · COMPLETE</p>
-          <h1>
-            {percent === 100
-              ? 'Every answer, supported.'
-              : percent >= 80
-                ? 'Your argument is taking shape.'
-                : 'Understanding starts here.'}
-          </h1>
-          <p>
-            {percent === 100
-              ? 'A strong result for this set. Return later and try unfamiliar questions to test what lasts.'
-              : `${session.answers.length - correct} ${session.answers.length - correct === 1 ? 'question gives' : 'questions give'} you a clear next step. Review the reasoning below, then try ${session.answers.length - correct === 1 ? 'it' : 'them'} again.`}
-          </p>
-        </div>
+      <p className="cn-results-label">{modeNames[session.mode]} complete</p>
+      <div className="cn-score-ring">
+        <h1>
+          {percent}
+          <small>%</small>
+        </h1>
+        <p>
+          {correct} of {session.answers.length} correct.
+        </p>
       </div>
       <div className="cn-actions">
-        <button className="cn-button primary" onClick={onAgain}>
-          <RotateCcw size={16} /> New {session.mode === 'exam' ? 'rehearsal' : 'session'}
-        </button>
         {correct < session.answers.length && (
-          <button className="cn-button" onClick={onMissed}>
+          <button className="cn-button primary" onClick={onMissed}>
             Practice these missed questions
           </button>
         )}
+        <button className="cn-button" onClick={onAgain}>
+          New {session.mode === 'exam' ? 'rehearsal' : 'session'}
+        </button>
         <button className="cn-link" onClick={onDesk}>
-          Return to study desk
+          Return to notebook
         </button>
       </div>
-      <div className="cn-report-topics">
-        {[...new Set(session.answers.map((a) => a.question.topic))].map((topic) => {
-          const group = session.answers.filter((a) => a.question.topic === topic);
-          const right = group.filter((a) => a.selected === a.question.answer).length;
-          return (
-            <div key={topic}>
-              <span>{topic}</span>
-              <strong>
-                {right} / {group.length}
-              </strong>
-            </div>
-          );
-        })}
-      </div>
-      <h2>Your complete answer review</h2>
-      <p>
-        Open any question for the correct answer, every alternative, and the supporting passage.
-      </p>
+      <details className="cn-progress-details">
+        <summary>Results by topic</summary>
+        <div className="cn-report-topics">
+          {[...new Set(session.answers.map((a) => a.question.topic))].map((topic) => {
+            const group = session.answers.filter((a) => a.question.topic === topic);
+            const right = group.filter((a) => a.selected === a.question.answer).length;
+            return (
+              <div key={topic}>
+                <span>{topic}</span>
+                <strong>
+                  {right} / {group.length}
+                </strong>
+              </div>
+            );
+          })}
+        </div>
+      </details>
+      <h2>Your answers</h2>
+      <p>Open a question to read the explanation and its source.</p>
       <div className="cn-result-list">
         {session.answers.map((answer, index) => (
           <details key={answer.question.id}>
@@ -665,12 +561,11 @@ function Results({
               <span
                 className={`cn-result-mark ${answer.selected === answer.question.answer ? 'correct' : 'incorrect'}`}
               >
-                {answer.selected === answer.question.answer ? <Check size={16} /> : <X size={16} />}
+                {answer.selected === answer.question.answer ? 'Correct' : 'Missed'}
               </span>
               <span>
                 {index + 1}. {answer.question.prompt}
               </span>
-              <ChevronDown size={16} />
             </summary>
             <AnswerExplanation answer={answer} onSource={onSource} />
           </details>
@@ -681,8 +576,8 @@ function Results({
 }
 
 function SourceReader() {
-  const [search, setSearch] = useState('');
-  const [jump, setJump] = useState('1');
+  const [search, setSearch] = useState(''),
+    [jump, setJump] = useState('1');
   const [active, setActive] = useState<number | null>(null);
   const blocks = useRef(new Map<number, HTMLElement>());
   const matches = useMemo(
@@ -700,17 +595,20 @@ function SourceReader() {
     setActive(id);
     requestAnimationFrame(() => {
       const block = blocks.current.get(id);
-      block?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      block?.scrollIntoView({ behavior: 'instant', block: 'center' });
       block?.focus({ preventScroll: true });
     });
   }
   return (
     <section className="cn-source-reader">
       <div className="cn-source-title">
-        <p className="cn-eyebrow">THE COMPLETE ESSAY · 1849</p>
         <h2>Civil Disobedience</h2>
-        <p>
-          Henry David Thoreau · first published as <em>Resistance to Civil Government</em>
+        <p>Henry David Thoreau, 1849</p>
+        <p className="cn-source-publication">
+          First published as <em>Resistance to Civil Government</em>.
+        </p>
+        <p className="cn-source-numbering">
+          Paragraph numbers identify this copy, not pages in your classroom edition.
         </p>
         <a
           className="cn-link"
@@ -718,22 +616,17 @@ function SourceReader() {
           target="_blank"
           rel="noreferrer"
         >
-          Project Gutenberg source <ExternalLink size={13} />
+          Project Gutenberg source ↗
         </a>
-        <p className="cn-source-numbering">
-          Paragraph numbers are this game’s internal reference system, not page numbers in your
-          class edition. The narrative and debates adapt the essay; this reader preserves the
-          original text.
-        </p>
       </div>
       <div className="cn-source-tools">
         <label className="cn-search">
-          <Search size={17} />
+          <span>Find a passage</span>
           <input
             aria-label="Search the essay"
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            placeholder="Search a word or phrase…"
+            placeholder="Word or phrase"
           />
         </label>
         <form
@@ -743,29 +636,30 @@ function SourceReader() {
           }}
         >
           <label htmlFor="cn-paragraph-jump">Paragraph</label>
-          <input
-            id="cn-paragraph-jump"
-            type="number"
-            min={1}
-            max={source.length}
-            value={jump}
-            onChange={(event) => setJump(event.target.value)}
-          />
-          <button className="cn-button" type="submit">
-            Go
-          </button>
+          <div>
+            <input
+              id="cn-paragraph-jump"
+              type="number"
+              min={1}
+              max={source.length}
+              value={jump}
+              onChange={(event) => setJump(event.target.value)}
+            />
+            <button className="cn-button" type="submit">
+              Go
+            </button>
+          </div>
         </form>
       </div>
       <p className="cn-source-count" role="status">
         {matches.length} {matches.length === 1 ? 'paragraph' : 'paragraphs'}
-        {search.trim() ? ` containing “${search.trim()}”` : ' in the essay'}
+        {search.trim() ? ` containing “${search.trim()}”` : ''}
       </p>
       {!matches.length && (
         <div className="cn-empty">
-          <Search size={25} />
           <h3>No matching passage.</h3>
           <p>Try a shorter phrase or a different spelling.</p>
-          <button className="cn-button" onClick={() => setSearch('')}>
+          <button className="cn-link" onClick={() => setSearch('')}>
             Show the full essay
           </button>
         </div>
@@ -796,41 +690,38 @@ function Journal({ collected, onSource }: { collected: string[]; onSource: (id: 
   return (
     <section className="cn-journal">
       <div className="cn-journal-heading">
-        <div>
-          <h2>Words worth carrying.</h2>
-          <p>
-            {collected.length} / {evidence.length} evidence cards discovered in the story. You can
-            study every card here at any time.
-          </p>
-        </div>
+        <h2>Collected passages</h2>
+        <p>
+          {collected.length} of {evidence.length} found in Concord.
+        </p>
         <label className="cn-toggle">
           <input type="checkbox" checked={all} onChange={(event) => setAll(event.target.checked)} />
-          Show all study cards
+          Show all passages
         </label>
       </div>
       {!entries.length && (
         <div className="cn-empty">
-          <BookOpen size={30} />
-          <h3>Your journal is waiting.</h3>
-          <p>Inspect objects in Concord to collect evidence, or open all study cards now.</p>
-          <button className="cn-button" onClick={() => setAll(true)}>
-            Browse all evidence
+          <p>
+            Nothing collected yet. Inspect the noticeboard, papers, and other objects in the town,
+            or browse the passages here.
+          </p>
+          <button className="cn-link" onClick={() => setAll(true)}>
+            Browse all passages
           </button>
         </div>
       )}
       <div className="cn-journal-grid">
         {entries.map((card) => (
           <article className="cn-journal-card" key={card.id}>
-            <p className="cn-eyebrow">
-              {card.topic} · {collected.includes(card.id) ? 'DISCOVERED' : 'STUDY CARD'}
+            <p className="cn-journal-topic">
+              {card.topic}
+              {!collected.includes(card.id) ? ' · not yet collected' : ''}
             </p>
             <h3>{card.title}</h3>
             <blockquote>“{card.quote}”</blockquote>
             <p>{card.meaning}</p>
             <button className="cn-link" onClick={() => onSource(card.paragraph)}>
-              <BookOpen size={15} />
-              Paragraph {card.paragraph}
-              <ArrowRight size={14} />
+              Read paragraph {card.paragraph} →
             </button>
           </article>
         ))}
@@ -844,7 +735,7 @@ export function SourcePanel({ paragraph, onClose }: { paragraph: number; onClose
   return (
     <StudyDialog title={`The essay · paragraph ${paragraph}`} onClose={onClose}>
       <p className="cn-source-numbering">
-        Internal paragraph references · Henry David Thoreau, 1849
+        Henry David Thoreau, 1849 · paragraph references for this copy
       </p>
       <div className="cn-source-context">
         {context.map((p) => (
@@ -860,8 +751,7 @@ export function SourcePanel({ paragraph, onClose }: { paragraph: number; onClose
         target="_blank"
         rel="noreferrer"
       >
-        Read the original source
-        <ExternalLink size={14} />
+        Read the original source ↗
       </a>
     </StudyDialog>
   );
@@ -873,11 +763,11 @@ function StudyDialog({
   onClose,
 }: {
   title: string;
-  children: React.ReactNode;
+  children: ReactNode;
   onClose: () => void;
 }) {
-  const dialog = useRef<HTMLDialogElement>(null);
-  const closeRef = useRef(onClose);
+  const dialog = useRef<HTMLDialogElement>(null),
+    closeRef = useRef(onClose);
   closeRef.current = onClose;
   useEffect(() => {
     const node = dialog.current;
@@ -887,8 +777,7 @@ function StudyDialog({
     node?.addEventListener('close', close);
     return () => {
       node?.removeEventListener('close', close);
-      // Removing the element closes it on unmount. Calling close() here queues a close event
-      // that can reach the replacement listener during React StrictMode's effect replay.
+      // DOM removal closes the dialog. close() here queues a stale event during StrictMode replay.
       previous?.focus();
     };
   }, []);
@@ -905,7 +794,7 @@ function StudyDialog({
         <header>
           <h2>{title}</h2>
           <button className="cn-icon-button" aria-label="Close passage" onClick={onClose} autoFocus>
-            <X size={20} />
+            ×
           </button>
         </header>
         {children}

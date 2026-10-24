@@ -2,6 +2,9 @@
 
 ## One Night in Concord
 
+- The visual revision replaces the dashboard-style launcher and HUD with an original ink illustration, a three-choice menu, restrained in-world controls, and a paper reading notebook. Authored canvas textures distinguish wood, plaster, masonry, cloth, paper, and road surfaces; lanterns, furniture, signage, and characters were rebuilt. There are no external generated bitmap assets.
+- Conversations show reply selection and source selection separately. Detailed quiz alternatives and progress summaries are expandable. Notebook heading contrast is checked against WCAG 4.5:1, and a movement regression confirms that opening and closing the notebook preserves position and view direction.
+
 - The full 51-paragraph/verse-block essay is bundled. Exact quotation, source-reference, distinct-option, topic-balance, and debate-evidence tests validate 12 cards, 12 objections, and 72 questions across eight topics.
 - Shared collision and scene layout tests establish a traversable route to every one of the twelve clues, prohibit walking through buildings or into the river, and verify camera-relative clue navigation.
 - Browser tests use actual WebGL and keyboard movement to collect the first clue, open its source context, dismiss only the top dialog, and verify discovery after refresh. All four environments must initialize without the fallback.

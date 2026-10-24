@@ -10,7 +10,7 @@ A browser game collection for Dual Credit English Language Arts III. The launch 
 
 ![One Night in Concord](docs/screenshots/concord-title.png)
 
-A first-person 3D exploration and argument game based on Thoreau’s complete 1849 essay. Four acts move from a lantern-lit village to a tax-office street, a county jail cell, and the river at dawn. Discover twelve passages, then defend three claims in each of four debates by pairing an interpretation with evidence that supports it. Your evidence deck grows with the journey. Incorrect arguments receive explanations and can be revised without losing story progress.
+A first-person 3D exploration and argument game based on Thoreau’s complete 1849 essay. An illustrated title page leads into four scenes: a lantern-lit village, a tax-office street, a county jail cell, and the road home at dawn. The interface keeps the world clear; directions appear when requested with H. Discover twelve passages, then answer each conversation one step at a time: choose your reply, then the passage that supports it. Incorrect answers receive explanations and can be revised without losing story progress.
 
 The study desk is available from the title or during play:
 
@@ -20,7 +20,7 @@ The study desk is available from the title or during play:
 - The full **51-paragraph/verse-block essay**, searchable with paragraph jumps, plus an evidence journal. Paragraph numbers are internal references rather than classroom page numbers.
 - Keyboard and touch controls, optional original procedural ambience, reduced motion, separate device-local saving, and a playable fallback if WebGL is unavailable.
 
-Move with WASD or arrows, drag to look, hold Shift to move faster, and press E to inspect nearby evidence. Q/R turn the view; PageUp/PageDown adjust vertical look. Escape pauses. Practice uses keys 1–4 and Enter. Quizzes have no time limit and do not require campaign completion.
+Move with WASD or arrows, drag to look, hold Shift to move faster, and press E to inspect nearby evidence. Q/R turn the view; PageUp/PageDown adjust vertical look. H shows or hides directions; J opens the notebook. Closing the notebook returns you to the same position and view. Escape pauses. Practice uses keys 1–4 and Enter. Quizzes have no time limit and do not require campaign completion.
 
 Dialogue, encounter staging, and scenery are original adaptations; evidence quotations and factual answers refer to the essay. The game evaluates understanding of Thoreau’s position, not personal political agreement. Coverage uses the full essay; match your teacher’s assigned excerpt and notes when preparing for a classroom quiz. [Source and adaptation outline](docs/concord-source-outline.md).
 
