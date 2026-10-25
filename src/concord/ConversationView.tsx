@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { speechCountAt, speechSchedule } from './speech';
 import { debates, evidence } from './data';
 import { SourcePanel } from './Study';
 import {
@@ -33,11 +34,12 @@ export default function Conversation(props: Props) {
   const opening =
     state.round === 0 && state.attempts === 0 && ['opening', 'reply'].includes(state.stage);
   const line = `${opening ? actor.introduction + ' ' : ''}${conversationLine(state)}`;
+  const timing = useMemo(() => speechSchedule(line), [line]);
   const lineKey = `${state.debateId}:${state.round}:${state.stage === 'reply' ? 'opening' : state.stage}:${state.result ?? ''}`;
   const root = useRef<HTMLElement>(null);
   const callbacks = useRef(props);
   callbacks.current = props;
-  const progress = useRef({ key: lineKey, count: 0 });
+  const progress = useRef({ key: lineKey, count: 0, elapsed: 0 });
   const [reveal, setReveal] = useState({ key: lineKey, count: 0 });
   const [paragraph, setParagraph] = useState<number | null>(null);
   const hand = conversationHand(state.debateId, state.round);
@@ -52,7 +54,7 @@ export default function Conversation(props: Props) {
   const farewell = state.stage === 'farewell' || state.stage === 'complete';
   const nextName = ['evening', 'night', 'morning'][state.debateId];
   const showWholeLine = () => {
-    progress.current = { key: lineKey, count: line.length };
+    progress.current = { key: lineKey, count: line.length, elapsed: timing.at(-1) ?? 0 };
     setReveal({ key: lineKey, count: line.length });
   };
   function usePassage() {
@@ -70,9 +72,10 @@ export default function Conversation(props: Props) {
   }
   useEffect(() => {
     if (paused || paragraph !== null) return;
-    if (progress.current.key !== lineKey) progress.current = { key: lineKey, count: 0 };
+    if (progress.current.key !== lineKey) progress.current = { key: lineKey, count: 0, elapsed: 0 };
     if (reduced) {
       progress.current.count = line.length;
+      progress.current.elapsed = timing.at(-1) ?? 0;
       setReveal({ key: lineKey, count: line.length });
       return;
     }
@@ -84,8 +87,8 @@ export default function Conversation(props: Props) {
     const tick = (now: number) => {
       const elapsed = (now - last) / 1000;
       last = now;
-      if (!document.hidden)
-        progress.current.count = Math.min(line.length, progress.current.count + elapsed * 42);
+      if (!document.hidden) progress.current.elapsed += elapsed;
+      progress.current.count = speechCountAt(timing, progress.current.elapsed);
       setReveal({ key: lineKey, count: Math.floor(progress.current.count) });
       if (progress.current.count < line.length) frame = requestAnimationFrame(tick);
     };
@@ -95,7 +98,7 @@ export default function Conversation(props: Props) {
       cancelAnimationFrame(frame);
       document.removeEventListener('visibilitychange', visibility);
     };
-  }, [lineKey, line, reduced, paused, paragraph]);
+  }, [lineKey, line, timing, reduced, paused, paragraph]);
   useEffect(() => {
     if (state.stage === 'opening' && revealed && !paused && paragraph === null)
       callbacks.current.onAction({ type: 'listen' });
@@ -109,15 +112,30 @@ export default function Conversation(props: Props) {
           ? state.result === 'agree'
             ? 'agree'
             : 'disagree'
-          : revealed
-            ? 'listening'
-            : 'speaking',
+          : !revealed
+            ? 'speaking'
+            : state.stage === 'evidence'
+              ? 'considering'
+              : 'listening',
       beat:
         state.round * 10 +
         ['opening', 'reply', 'evidence', 'response', 'farewell', 'complete'].indexOf(state.stage),
       speaking: !revealed && !paused && paragraph === null,
+      text: line,
+      revealed: Math.min(count, line.length),
     });
-  }, [actor.id, state.round, state.stage, state.result, farewell, revealed, paused, paragraph]);
+  }, [
+    actor.id,
+    state.round,
+    state.stage,
+    state.result,
+    farewell,
+    revealed,
+    count,
+    line,
+    paused,
+    paragraph,
+  ]);
   useEffect(() => {
     if (!paused && paragraph === null) root.current?.focus({ preventScroll: true });
   }, [state.stage, paused, paragraph]);

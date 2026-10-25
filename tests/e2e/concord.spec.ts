@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import type * as THREE from 'three';
 import { debates, evidence, questions, source } from '../../src/concord/data';
 import { freshSave, SAVE_KEY, type ConcordSave } from '../../src/concord/save';
 import { interactionDefs } from '../../src/concord/interactions';
@@ -190,7 +191,7 @@ async function expectFaceClearOfSpeech(page: Page, act: number) {
   const face = await page.evaluate((id) => {
     const world = window.concordTest;
     const actor = world.scene.children.find((object) => object.userData.actorId === id)!;
-    const head = actor.getObjectByName('Conversation mouth')!.parent!;
+    const head = actor.getObjectByName('Conversation face')!.parent!;
     head.updateWorldMatrix(true, false);
     world.camera.updateMatrixWorld();
     const canvas = world.canvas.getBoundingClientRect();
@@ -228,6 +229,33 @@ async function expectFaceClearOfSpeech(page: Page, act: number) {
     overlapWidth * overlapHeight,
     'The dialogue must not cover the speaker’s face',
   ).toBeLessThan(4);
+}
+
+async function facePose(page: Page, act: number) {
+  return page.evaluate((id) => {
+    const actor = window.concordTest.scene.children.find(
+      (object) => object.userData.actorId === id,
+    )!;
+    const face = actor.getObjectByName('Conversation face')!;
+    const mouth = face.getObjectByName('Conversation mouth') as THREE.Mesh<THREE.BufferGeometry>;
+    return {
+      expression: actor.userData.expression as string,
+      mouth: Array.from(mouth.geometry.getAttribute('position').array),
+      brows: ['Left eyebrow', 'Right eyebrow'].map((name) => {
+        const brow = face.getObjectByName(name)!;
+        return [brow.position.y, brow.rotation.z];
+      }),
+      eyes: ['Left eye', 'Right eye'].map((name) => face.getObjectByName(name)!.scale.y),
+    };
+  }, conversationActors[act].id);
+}
+
+async function expectExpression(page: Page, act: number, expression: string) {
+  await expect.poll(async () => (await facePose(page, act)).expression).toBe(expression);
+  const face = await facePose(page, act);
+  expect(face.mouth.every(Number.isFinite)).toBe(true);
+  expect(Math.max(...face.mouth) - Math.min(...face.mouth)).toBeGreaterThan(0.04);
+  return face;
 }
 
 async function chooseReply(page: Page, text: string) {
@@ -636,6 +664,8 @@ test('all four debates stay with their 3D speakers through replies, evidence, re
         }, actor.id),
       )
       .toBe('listening');
+    const listeningFace = await expectExpression(page, act, 'curious');
+    expect(listeningFace.eyes.every((eye) => eye > 0.7)).toBe(true);
     const actorFrame = await page.evaluate((id) => {
       const world = window.concordTest;
       const actor = world.scene.children.find((object) => object.userData.actorId === id)!;
@@ -679,6 +709,17 @@ test('all four debates stay with their 3D speakers through replies, evidence, re
         await chooseReply(page, conversationReply(act, index, round.claims.indexOf(wrong)));
         await usePassage(page, target.quote);
         await expect(page.locator('.cn-speech')).toContainText(response.wrongClaims[0]);
+        await expectExpression(page, act, 'doubtful');
+        await expect
+          .poll(async () => {
+            const pose = await facePose(page, act);
+            return Math.max(
+              ...pose.brows
+                .flat()
+                .map((value, index) => Math.abs(value - listeningFace.brows.flat()[index])),
+            );
+          })
+          .toBeGreaterThan(0.02);
         const note = page.locator('.cn-conversation details').first();
         await note.locator('summary').click();
         await expect(note).toContainText(wrong.explanation);
@@ -697,6 +738,7 @@ test('all four debates stay with their 3D speakers through replies, evidence, re
       await chooseReply(page, conversationReply(act, index, round.claims.indexOf(claim)));
       await revealSpeech(page);
       await expect(page.locator('.cn-speech')).toContainText(response.request);
+      await expectExpression(page, act, 'thoughtful');
       if (act === 0 && index === 1) {
         await page.getByRole('button', { name: 'Next passage', exact: true }).click();
         const beforeLeaving = await page.locator('.cn-conversation-quote').innerText();
@@ -732,6 +774,15 @@ test('all four debates stay with their 3D speakers through replies, evidence, re
       }
       await usePassage(page, target.quote);
       await expect(page.locator('.cn-speech')).toContainText(response.agree);
+      await expectExpression(page, act, 'warm');
+      await expect
+        .poll(async () => {
+          const warm = await facePose(page, act);
+          return Math.max(
+            ...warm.mouth.map((value, vertex) => Math.abs(value - listeningFace.mouth[vertex])),
+          );
+        })
+        .toBeGreaterThan(0.002);
       await expect(page.locator('.cn-modal-backdrop, .cn-debate-victory')).toHaveCount(0);
       await page.getByRole('button', { name: 'Go on', exact: false }).click();
     }
@@ -784,7 +835,7 @@ test('all four debates stay with their 3D speakers through replies, evidence, re
   expect(renderingWarnings).toEqual([]);
 });
 
-test('a 3D speaker moves their mouth while talking and listens when replies appear', async ({
+test('a 3D speaker articulates with their face and hands, then listens and considers the notebook', async ({
   page,
 }) => {
   await setup(page, { collected: evidence.map((card) => card.id), reduced: false });
@@ -802,24 +853,40 @@ test('a 3D speaker moves their mouth while talking and listens when replies appe
       }, actorId),
     )
     .toBe(true);
-  const mouthSamples = await page.evaluate(async (id) => {
+  const deliverySamples = await page.evaluate(async (id) => {
     const actor = window.concordTest.scene.children.find(
       (object) => object.userData.actorId === id,
     )!;
-    const mouth = actor.getObjectByName('Conversation mouth')!;
+    const mouth = actor.getObjectByName('Conversation mouth') as THREE.Mesh<THREE.BufferGeometry>;
+    const left = actor.getObjectByName('Left forearm')!;
+    const right = actor.getObjectByName('Right forearm')!;
     const started = performance.now();
-    const samples: number[] = [];
-    return new Promise<number[]>((resolve) => {
+    const samples: { mouth: number; left: number; right: number }[] = [];
+    return new Promise<typeof samples>((resolve) => {
       function sample(now: number) {
-        if (actor.userData.speaking) samples.push(mouth.scale.y);
+        if (actor.userData.speaking) {
+          const positions = mouth.geometry.getAttribute('position');
+          const ys = Array.from({ length: positions.count }, (_, index) => positions.getY(index));
+          samples.push({
+            mouth: Math.max(...ys) - Math.min(...ys),
+            left: left.rotation.x,
+            right: right.rotation.x,
+          });
+        }
         if (now - started < 1100) requestAnimationFrame(sample);
         else resolve(samples);
       }
       requestAnimationFrame(sample);
     });
   }, actorId);
-  expect(mouthSamples.length).toBeGreaterThan(1);
+  expect(deliverySamples.length).toBeGreaterThan(1);
+  const mouthSamples = deliverySamples.map((sample) => sample.mouth);
   expect(Math.max(...mouthSamples) - Math.min(...mouthSamples)).toBeGreaterThan(0.001);
+  const armTravel = (arm: 'left' | 'right') => {
+    const samples = deliverySamples.map((sample) => sample[arm]);
+    return Math.max(...samples) - Math.min(...samples);
+  };
+  expect(Math.max(armTravel('left'), armTravel('right'))).toBeGreaterThan(0.025);
   await revealSpeech(page);
   await expect(page.locator('.cn-reply')).toHaveCount(3);
   await expect
@@ -832,6 +899,7 @@ test('a 3D speaker moves their mouth while talking and listens when replies appe
       }, actorId),
     )
     .toEqual({ speaking: false, phase: 'listening' });
+  const listeningFace = await expectExpression(page, 0, 'curious');
   await page.getByRole('button', { name: 'Pause game', exact: true }).click();
   await expect(page.getByRole('dialog', { name: 'Paused', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Resume', exact: true }).click();
@@ -840,7 +908,20 @@ test('a 3D speaker moves their mouth while talking and listens when replies appe
   const round = debates[0].rounds[0];
   const claimIndex = round.claims.findIndex((claim) => claim.correct);
   await chooseReply(page, conversationReply(0, 0, claimIndex));
+  await revealSpeech(page);
+  await expectExpression(page, 0, 'thoughtful');
+  await expect
+    .poll(async () => {
+      const thinking = await facePose(page, 0);
+      return Math.max(
+        ...thinking.brows
+          .flat()
+          .map((value, index) => Math.abs(value - listeningFace.brows.flat()[index])),
+      );
+    })
+    .toBeGreaterThan(0.015);
   await usePassage(page, evidence.find((card) => card.id === round.evidenceId)!.quote);
+  await expectExpression(page, 0, 'warm');
   const summary = page.locator('.cn-reading-note > summary');
   await summary.focus();
   await page.keyboard.press('Tab');
@@ -855,6 +936,16 @@ test('a 3D speaker moves their mouth while talking and listens when replies appe
   await revealSpeech(page);
   await expect(page.locator('.cn-speech')).toContainText(conversationDialogue[0][0].agree);
   await expectFaceClearOfSpeech(page, 0);
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const actor = window.concordTest.scene.children.find(
+          (object) => object.userData.actorId === 'citizen',
+        )!;
+        return actor.userData.gesture;
+      }),
+    )
+    .toBe('settled');
   await page.screenshot({ path: 'docs/screenshots/concord-conversation-close.png' });
 });
 

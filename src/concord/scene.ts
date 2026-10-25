@@ -40,6 +40,9 @@ export type ConversationPose = {
   phase: ConversationPhase;
   beat: number;
   speaking: boolean;
+  /** The printed line and its delivery position keep acting tied to the words. */
+  text?: string;
+  revealed?: number;
 };
 
 /** Original scenery and fictional encounter staging, not a reconstruction of historic Concord. */

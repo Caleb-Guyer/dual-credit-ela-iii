@@ -1,5 +1,11 @@
 import * as T from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { createConversationFace } from './face';
+import {
+  characterBlink,
+  sampleConversationPerformance,
+  type ConversationPerformance,
+} from './performance';
 
 export type CharacterRole = 'neighbor' | 'printer' | 'collector' | 'merchant' | 'jailer' | 'walker';
 export type ConversationPhase =
@@ -9,6 +15,8 @@ export type CharacterConversation = {
   beat: number;
   speaking: boolean;
   elapsed: number;
+  text?: string;
+  revealed?: number;
 };
 type Material = (color: string, cloth?: boolean) => T.MeshStandardMaterial;
 type CharacterOptions = {
@@ -83,13 +91,14 @@ export class Townsperson {
   readonly rightForearm = new T.Group();
   readonly leftLeg = new T.Group();
   readonly rightLeg = new T.Group();
-  private eyes: T.Mesh[] = [];
-  private mouth!: T.Mesh;
+  private face!: ReturnType<typeof createConversationFace>;
   private baseYaw: number;
   private headYaw = 0;
   private attention = 0;
   private walkTime = 0;
   private conversationWeight = 0;
+  private lastPerformance: ConversationPerformance | null = null;
+  private settledRotations = new Map<T.Object3D, T.Quaternion>();
 
   constructor(
     readonly options: CharacterOptions,
@@ -98,6 +107,11 @@ export class Townsperson {
     const { coat, skin, hair, role, bonnet = false } = options;
     this.group.name = options.name;
     this.group.userData = { character: options.name, role };
+    this.head.name = 'Character head';
+    this.leftArm.name = 'Left arm';
+    this.rightArm.name = 'Right arm';
+    this.leftForearm.name = 'Left forearm';
+    this.rightForearm.name = 'Right forearm';
     this.group.position.set(options.x, 0, options.z);
     this.group.rotation.y = this.baseYaw = options.yaw;
     this.group.add(this.body);
@@ -183,20 +197,14 @@ export class Townsperson {
     oval(this.head, skin, 0, 0.025, 0, 0.155, 0.205, 0.142);
     oval(this.head, hair, 0, 0.09, -0.043, 0.16, 0.155, 0.133);
     // Cheeks, asymmetric hair part, and a slight nose keep faces from reading as blank pegs.
-    oval(this.head, skin, -0.068, -0.03, 0.092, 0.076, 0.079, 0.062);
-    oval(this.head, skin, 0.066, -0.03, 0.092, 0.073, 0.076, 0.062);
+    oval(this.head, skin, -0.068, -0.03, 0.092, 0.052, 0.055, 0.039);
+    oval(this.head, skin, 0.066, -0.03, 0.092, 0.05, 0.052, 0.038);
     const fringe = oval(this.head, hair, -0.067, 0.13, 0.075, 0.1, 0.075, 0.067);
     fringe.rotation.z = -0.25;
-    for (const side of [-1, 1]) {
+    for (const side of [-1, 1])
       oval(this.head, skin, side * 0.15, 0.01, -0.005, 0.033, 0.052, 0.035);
-      const eye = oval(this.head, '#293b3c', side * 0.054, 0.057, 0.134, 0.014, 0.012, 0.009);
-      this.eyes.push(eye);
-      const brow = block(this.head, hair, side * 0.055, 0.087, 0.129, 0.043, 0.009, 0.012);
-      brow.rotation.z = side * -0.07;
-    }
     oval(this.head, skin, 0, 0.009, 0.143, 0.025, 0.046, 0.037);
-    this.mouth = oval(this.head, '#684537', 0, -0.066, 0.139, 0.024, 0.004, 0.009);
-    this.mouth.name = 'Conversation mouth';
+    this.face = createConversationFace(this.head, skin, hair, material);
 
     if (bonnet) {
       oval(this.head, '#b6ad8e', 0, 0.11, -0.085, 0.19, 0.183, 0.14, true);
@@ -239,7 +247,7 @@ export class Townsperson {
         Math.PI / 2;
       block(this.body, '#b6a16c', 0.2, 0.82, 0.13, 0.018, 0.07, 0.02);
     }
-    const animated = new Set([...this.eyes, this.mouth]);
+    const animated = new Set(this.face.animated);
     for (const pivot of [
       this.body,
       this.head,
@@ -249,8 +257,10 @@ export class Townsperson {
       this.rightForearm,
       this.leftLeg,
       this.rightLeg,
-    ])
+    ]) {
       mergeStaticParts(pivot, animated);
+      this.settledRotations.set(pivot, pivot.quaternion.clone());
+    }
   }
 
   update(
@@ -301,20 +311,12 @@ export class Townsperson {
       this.headYaw,
       reacting && role === 'collector' ? Math.sin(progress * Math.PI * 2) * 0.065 : 0,
     );
-    const blinkPhase = (time + seed * 1.73) % (4.1 + (seed % 3) * 0.67);
-    const blink = reduced ? 1 : blinkPhase < 0.14 ? Math.abs(blinkPhase - 0.07) / 0.07 : 1;
-    this.eyes.forEach((eye) => (eye.scale.y = 0.012 * Math.max(0.06, blink)));
     const speaking = !!conversation?.speaking;
-    const syllable = speaking
-      ? reduced
-        ? 0.28
-        : Math.max(0, Math.sin(time * 16 + seed)) * (0.5 + Math.sin(time * 4.3) * 0.18)
-      : 0;
-    this.mouth.scale.y = 0.004 + syllable * 0.025;
-    this.mouth.scale.x = 0.024 + syllable * 0.004;
-    this.head.position.y = 1.61 + (speaking && !reduced ? Math.sin(time * 3.1 + seed) * 0.003 : 0);
     this.group.userData.conversationPhase = conversation?.phase ?? null;
     this.group.userData.speaking = speaking;
+    if (conversation)
+      this.lastPerformance = sampleConversationPerformance(role, seed, conversation, reduced);
+    const performance = this.lastPerformance;
 
     this.leftArm.rotation.set(0.08, 0, 0.12);
     this.rightArm.rotation.set(-0.06, 0, -0.1);
@@ -360,48 +362,56 @@ export class Townsperson {
       this.leftArm.rotation.x = -stride * 0.1;
       this.rightArm.rotation.x = stride * 0.1;
     }
-    if (conversation) {
-      const phase = conversation.phase;
-      const beat = conversation.beat;
-      const pulse = reduced ? 0 : Math.sin(time * 2.15 + seed + beat) * 0.09;
-      const response = Math.exp(-conversation.elapsed * 1.1);
-      // Speaking hands offer the argument; while listening they settle below the waistcoat.
-      this.leftArm.rotation.set(-0.23, 0, 0.13);
-      this.rightArm.rotation.set(-0.28, 0, -0.13);
-      this.leftForearm.rotation.x = -0.5;
-      this.rightForearm.rotation.x = -0.6;
-      if (speaking) {
-        const leading = beat % 2 ? this.leftArm : this.rightArm;
-        const forearm = beat % 2 ? this.leftForearm : this.rightForearm;
-        leading.rotation.x = -0.62 + pulse;
-        leading.rotation.z = beat % 2 ? 0.28 : -0.28;
-        forearm.rotation.x = -0.95 - pulse;
-        this.head.rotation.x -= reduced ? 0.02 : Math.sin(time * 2.7 + beat) * 0.027;
+    const weight = this.conversationWeight;
+    if (performance && weight > 0.001) {
+      for (const [joint, target] of [
+        [this.leftArm, performance.leftArm],
+        [this.rightArm, performance.rightArm],
+        [this.leftForearm, performance.leftForearm],
+        [this.rightForearm, performance.rightForearm],
+      ] as const) {
+        joint.rotation.x += (target[0] - joint.rotation.x) * weight;
+        joint.rotation.y += (target[1] - joint.rotation.y) * weight;
+        joint.rotation.z += (target[2] - joint.rotation.z) * weight;
       }
-      if (phase === 'considering') {
-        this.rightArm.rotation.x = -0.78;
-        this.rightForearm.rotation.x = -1.45;
-        this.head.rotation.x += 0.065;
-      } else if (phase === 'agree') {
-        this.head.rotation.x += reduced
-          ? 0.03
-          : Math.sin(conversation.elapsed * 6) * 0.075 * response;
-        this.rightArm.rotation.z = -0.25;
-      } else if (phase === 'disagree') {
-        this.head.rotation.y += reduced ? 0 : Math.sin(conversation.elapsed * 5.4) * 0.1 * response;
-        this.leftArm.rotation.z = 0.27;
-        this.leftForearm.rotation.x = -0.85;
-      } else if (phase === 'farewell') {
-        this.rightArm.rotation.x = -0.8;
-        this.rightArm.rotation.z = -0.28;
-        this.rightForearm.rotation.x = -1.15;
-        this.rightForearm.rotation.z = reduced
-          ? 0.1
-          : Math.sin(conversation.elapsed * 4.2) * 0.12 * response;
-      }
+      this.head.rotation.x += performance.headPitch * weight;
+      this.head.rotation.y += performance.headYaw * weight;
+      this.head.rotation.z += performance.headRoll * weight;
     }
+    this.body.position.x = T.MathUtils.damp(
+      this.body.position.x,
+      (performance?.shift ?? 0) * weight,
+      5,
+      dt,
+    );
+    this.body.rotation.x = (performance?.lean ?? 0) * weight;
+    this.face.update(
+      {
+        expression:
+          performance && weight > 0.04 ? performance.expression : reacting ? 'curious' : 'neutral',
+        intensity:
+          performance && weight > 0.04 ? performance.intensity * weight : reacting ? 0.3 : 0,
+        openness: conversation && performance ? performance.openness : 0,
+        blink: characterBlink(time, seed, reduced),
+        gazeX: conversation && performance ? performance.gazeX : 0,
+        gazeY: conversation && performance ? performance.gazeY : 0,
+      },
+      dt,
+    );
+    const faceState = this.head.getObjectByName('Conversation face')?.userData;
+    this.group.userData.expression = faceState?.expression ?? 'neutral';
+    this.group.userData.gesture = conversation && performance ? performance.gesture : 'rest';
+    this.group.userData.mouthOpenness = faceState?.openness ?? 0;
+    this.group.userData.gazeX = faceState?.gazeX ?? 0;
+    this.group.userData.gazeY = faceState?.gazeY ?? 0;
     // Attention comes from a small upper-body turn, never an abrupt whole-person spin.
     this.body.rotation.y = this.headYaw * 0.16;
+    // Damping the whole articulated pose lets a hand finish its movement when a reply arrives.
+    // It also eases back to the person's work instead of snapping into the old idle animation.
+    for (const [joint, settled] of this.settledRotations) {
+      settled.slerp(joint.quaternion, 1 - Math.exp(-dt * 10));
+      joint.quaternion.copy(settled);
+    }
     if (
       role === 'walker' &&
       !reduced &&
