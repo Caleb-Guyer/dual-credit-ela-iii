@@ -74,36 +74,43 @@ async function enter(page: Page) {
 /** Observe the real world through its development module, without production test globals. */
 async function observeWorld(page: Page) {
   await page.evaluate(() => Reflect.deleteProperty(window, 'concordTest'));
-  await expect(async () => {
-    await page.evaluate(async () => {
-      // Include cached module versions if a developer's HMR update landed during a run.
-      const paths = [
-        ...new Set(
-          performance
-            .getEntriesByType('resource')
-            .filter((entry) => entry.name.includes('/src/concord/scene.ts'))
-            .map((entry) => entry.name),
-        ),
-      ];
-      // Playwright's controlled clock replaces the resource timing timeline.
-      if (!paths.length) paths.push(new URL('/src/concord/scene.ts', location.href).href);
-      for (const path of paths) {
-        const module = await import(/* @vite-ignore */ path);
-        const original = module.ConcordWorld.prototype.look;
-        module.ConcordWorld.prototype.look = function (...args: number[]) {
+  await page.evaluate(async () => {
+    // Include cached module versions if a developer's HMR update landed during a run.
+    const paths = [
+      ...new Set(
+        performance
+          .getEntriesByType('resource')
+          .filter((entry) => entry.name.includes('/src/concord/scene.ts'))
+          .map((entry) => entry.name),
+      ),
+    ];
+    // Playwright's controlled clock replaces the resource timing timeline.
+    if (!paths.length) paths.push(new URL('/src/concord/scene.ts', location.href).href);
+    for (const path of paths) {
+      const module = await import(/* @vite-ignore */ path);
+      const original = module.ConcordWorld.prototype.drainFootsteps;
+      module.ConcordWorld.prototype.drainFootsteps = function () {
+        // World samples its sounds each frame, including when paused. Observing that
+        // existing call avoids changing the view or waiting for a software-rendered drag.
+        if (this.canvas === document.querySelector('.cn-game-shell canvas'))
           window.concordTest = this;
-          original.apply(this, args);
-        };
-      }
-    });
-    const canvas = page.locator('.cn-game-shell canvas');
-    const box = (await canvas.boundingBox())!;
-    await page.mouse.move(box.x + box.width * 0.6, box.y + box.height * 0.55);
-    await page.mouse.down();
-    await page.mouse.move(box.x + box.width * 0.6 + 3, box.y + box.height * 0.55, { steps: 2 });
-    await page.mouse.up();
-    expect(await page.evaluate(() => !!window.concordTest)).toBe(true);
-  }).toPass({ timeout: 10000 });
+        return original.call(this);
+      };
+    }
+  });
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const world = window.concordTest;
+        return (
+          !!world &&
+          world.canvas.isConnected &&
+          world.canvas === document.querySelector('.cn-game-shell canvas') &&
+          !world.renderer.getContext().isContextLost()
+        );
+      }),
+    )
+    .toBe(true);
 }
 
 const saved = (page: Page) =>
