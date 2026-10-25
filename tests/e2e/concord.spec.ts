@@ -706,6 +706,16 @@ test('all four debates stay with their 3D speakers through replies, evidence, re
         await expect(page.locator('dialog[open]')).toContainText(
           source.find((paragraph) => paragraph.id === quotedCard.paragraph)!.text,
         );
+        await expect(page.locator('dialog[open]')).toHaveCSS('pointer-events', 'auto');
+        await expect(page.locator('dialog[open]')).toHaveCSS('text-shadow', 'none');
+        await expect(
+          page.getByRole('link', { name: 'Read the original source', exact: false }),
+        ).toHaveCSS('pointer-events', 'auto');
+        await page.getByRole('button', { name: 'Close passage', exact: true }).click();
+        await expect(page.locator('dialog[open]')).toHaveCount(0);
+        await expect(page.locator('.cn-conversation-quote')).toHaveText(beforeLeaving);
+        await page.getByRole('button', { name: 'Read in context', exact: true }).click();
+        await expect(page.locator('dialog[open]')).toBeVisible();
         await page.keyboard.press('ArrowRight');
         await expect(page.locator('.cn-conversation')).toHaveCount(1);
         await page.keyboard.press('Escape');

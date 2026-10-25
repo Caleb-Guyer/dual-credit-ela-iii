@@ -1471,3 +1471,7 @@
     bottom: 210px;
   }
 }
+.cn-conversation dialog.cn-dialog {
+  pointer-events: auto;
+  text-shadow: none;
+}
