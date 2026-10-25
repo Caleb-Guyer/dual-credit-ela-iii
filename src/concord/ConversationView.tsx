@@ -235,7 +235,14 @@ export default function Conversation(props: Props) {
         className={`cn-speech ${anchor.visible ? 'cn-speech-anchored' : 'cn-speech-fallback'}`}
         style={bubbleStyle}
       >
-        <span className="cn-speaker-name">{actor.name}</span>
+        <div className="cn-speech-heading">
+          <span className="cn-speaker-name">{actor.name}</span>
+          {!revealed && (
+            <button className="cn-speech-skip" onClick={showWholeLine}>
+              Show whole line <kbd>E</kbd>
+            </button>
+          )}
+        </div>
         <p aria-hidden="true">
           {line.slice(0, count)}
           <span className="cn-speech-caret" aria-hidden="true">
@@ -251,11 +258,6 @@ export default function Conversation(props: Props) {
         >
           {line}
         </span>
-        {!revealed && (
-          <button className="cn-speech-skip" onClick={showWholeLine}>
-            Show whole line <kbd>E</kbd>
-          </button>
-        )}
       </div>
       <div className="cn-talk-controls">
         <div className="cn-talk-topline">

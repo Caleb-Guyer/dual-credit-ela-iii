@@ -803,9 +803,12 @@ export class ConcordWorld {
       ? this.conversationPeople.get(this.conversation.actorId)
       : undefined;
     if (!actor) return { x: 0, y: 0, visible: false, clearance: 42 };
-    actor.head.updateWorldMatrix(true, false);
+    actor.group.updateWorldMatrix(true, false);
     this.camera.updateMatrixWorld();
-    this.conversationAnchor.set(0, 0.06, 0.14).applyMatrix4(actor.head.matrixWorld);
+    // Keep reading and pointer targets still while the person nods, breathes, or tilts their head.
+    // A spatial caption belongs beside the speaker, rather than on their animated face.
+    actor.group.getWorldPosition(this.conversationAnchor);
+    this.conversationAnchor.y += 1.67;
     const rect = this.canvas.getBoundingClientRect();
     const distance = Math.max(0.3, this.camera.position.distanceTo(this.conversationAnchor));
     const focal = rect.height / (2 * Math.tan(T.MathUtils.degToRad(this.camera.fov / 2)));

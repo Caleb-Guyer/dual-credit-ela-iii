@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { errors, expect, test, type Page } from '@playwright/test';
 import type * as THREE from 'three';
 import { debates, evidence, questions, source } from '../../src/concord/data';
 import { freshSave, SAVE_KEY, type ConcordSave } from '../../src/concord/save';
@@ -170,9 +170,18 @@ async function approachSpeaker(page: Page, act: number, touch = false, distance?
     .toBe(true);
 }
 
-async function revealSpeech(page: Page) {
+async function revealSpeech(page: Page, force = true) {
   const reveal = page.getByRole('button', { name: 'Show whole line', exact: false });
-  if (await reveal.isVisible()) await reveal.click();
+  if (await reveal.isVisible()) {
+    try {
+      await reveal.click({ force, timeout: 5000 });
+    } catch (error) {
+      // The line may finish and remove its skip control between observation and input.
+      // Never replace this with E: once printing finishes that key can advance a reply.
+      if (!(error instanceof errors.TimeoutError) || (await reveal.isVisible())) throw error;
+    }
+  }
+  await expect(reveal).toBeHidden();
 }
 
 async function expectSpeakerFacingPlayer(page: Page, act: number) {
@@ -894,7 +903,39 @@ test('a 3D speaker articulates with their face and hands, then listens and consi
     return Math.max(...samples) - Math.min(...samples);
   };
   expect(Math.max(armTravel('left'), armTravel('right'))).toBeGreaterThan(0.025);
-  await revealSpeech(page);
+  const anchorMotion = await page.evaluate((id) => {
+    const world = window.concordTest;
+    const actor = world.scene.children.find((object) => object.userData.actorId === id)!;
+    const head = actor.getObjectByName('Character head')!;
+    const position = head.position.clone();
+    const rotation = head.quaternion.clone();
+    const before = world.getConversationAnchor();
+    try {
+      head.position.y += 0.015;
+      head.rotation.x += 0.14;
+      head.rotation.y -= 0.08;
+      head.rotation.z += 0.08;
+      head.updateWorldMatrix(true, false);
+      const after = world.getConversationAnchor();
+      return {
+        headRotation: head.quaternion.angleTo(rotation),
+        captionDrift: Math.hypot(after.x - before.x, after.y - before.y),
+      };
+    } finally {
+      head.position.copy(position);
+      head.quaternion.copy(rotation);
+      head.updateWorldMatrix(true, false);
+    }
+  }, actorId);
+  expect(anchorMotion.headRotation).toBeGreaterThan(0.1);
+  expect(
+    anchorMotion.captionDrift,
+    'Head gestures must not move the reading/click anchor',
+  ).toBeLessThan(0.001);
+  const spokenLine = await page.locator('.cn-speech-accessible').innerText();
+  // Use an ordinary mouse click here as well as the bounded transient-control helper.
+  await revealSpeech(page, false);
+  await expect(page.locator('.cn-speech-accessible')).toHaveText(spokenLine);
   await expect(page.locator('.cn-reply')).toHaveCount(3);
   await expect
     .poll(() =>
