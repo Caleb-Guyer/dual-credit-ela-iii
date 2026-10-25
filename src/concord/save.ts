@@ -9,6 +9,7 @@ export type ConcordSave = {
   missed: string[];
   exams: { score: number; total: number; date: string }[];
   music: boolean;
+  sound: boolean;
   reduced: boolean;
 };
 export const freshSave = (): ConcordSave => ({
@@ -21,6 +22,7 @@ export const freshSave = (): ConcordSave => ({
   missed: [],
   exams: [],
   music: false,
+  sound: true,
   reduced:
     typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches,
 });
@@ -88,6 +90,7 @@ export function parseSave(raw: string | null): ConcordSave {
           .slice(-20)
       : [];
     if (typeof v.music === 'boolean') save.music = v.music;
+    if (typeof v.sound === 'boolean') save.sound = v.sound;
     if (typeof v.reduced === 'boolean') save.reduced = v.reduced;
   } catch {
     /* A corrupt or unavailable save starts a new journey safely. */

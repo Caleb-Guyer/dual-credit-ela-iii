@@ -1095,3 +1095,189 @@
     transform: none !important;
   }
 }
+/* Encounters sit beneath the scene, leaving the hands, faces and working props in view. */
+.cn-interaction {
+  position: absolute;
+  z-index: 5;
+  left: 50%;
+  bottom: 25px;
+  transform: translateX(-50%);
+  width: min(560px, calc(100% - 40px));
+  max-height: min(48svh, 410px);
+  overflow-y: auto;
+  padding: 21px 26px 23px;
+  background: #eee5d2f7;
+  color: #30402e;
+  border: 1px solid #c2b99f;
+  border-top: 3px solid #758368;
+  box-shadow: 0 7px 35px #0d1b1b66;
+  outline: none;
+  font:
+    17px/1.5 Georgia,
+    serif;
+}
+.cn-interaction p {
+  margin: 0 0 13px;
+}
+.cn-interaction .cn-interaction-place {
+  font:
+    italic 15px Georgia,
+    serif;
+  color: #61694e;
+  padding-right: 28px;
+  margin-bottom: 13px;
+}
+.cn-interaction-leave {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  border: 0;
+  background: transparent;
+  color: #55614a !important;
+  width: 35px;
+  height: 35px;
+  font-size: 24px;
+}
+.cn-scene-dialogue {
+  margin: 0 0 16px;
+  padding-left: 14px;
+  border-left: 2px solid #a0a687;
+}
+.cn-scene-dialogue > span {
+  display: block;
+  font-size: 13px;
+  color: #61694e;
+  margin-bottom: 5px;
+}
+.cn-scene-dialogue p {
+  font-size: 19px;
+  margin-bottom: 5px;
+}
+.cn-scene-dialogue small {
+  display: block;
+  font:
+    10px/1.4 Arial,
+    sans-serif;
+  color: #72745d;
+}
+.cn-interaction-intro {
+  color: #59614c;
+  font-size: 15px;
+}
+.cn-interaction-response {
+  font-style: italic;
+  color: #485a40;
+}
+.cn-interaction-action,
+.cn-interaction-choices button {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 48px;
+  padding: 12px 15px;
+  border: 1px solid #9da588;
+  background: #e3ddc7;
+  color: #30432e !important;
+  font:
+    16px/1.4 Georgia,
+    serif;
+  text-align: left;
+  touch-action: none;
+  user-select: none;
+}
+.cn-interaction-action {
+  background: linear-gradient(
+    to right,
+    #b7c0a1 var(--action-progress, 0%),
+    #e3ddc7 var(--action-progress, 0%)
+  );
+}
+.cn-interaction-action small {
+  margin-left: auto;
+  font-size: 12px;
+  white-space: nowrap;
+  color: #5b654c;
+}
+.cn-interaction-action:hover,
+.cn-interaction-choices button:hover {
+  border-color: #657751;
+}
+.cn-interaction kbd {
+  color: #677454;
+  font:
+    11px Georgia,
+    serif;
+  border: 1px solid #9fa88a;
+  padding: 3px 6px;
+}
+.cn-interaction-choices {
+  display: grid;
+  gap: 8px;
+}
+.cn-action-progress {
+  display: block;
+  height: 2px;
+}
+.cn-look-toggle {
+  position: absolute;
+  left: 25px;
+  bottom: 20px;
+  border: 0;
+  background: #1c3428a6;
+  color: #dfe4c5 !important;
+  font: 13px Georgia !important;
+  padding: 9px 12px;
+  min-height: 38px;
+}
+.cn-game-header button:disabled {
+  opacity: 0.45;
+}
+@media (pointer: coarse) {
+  .cn-look-toggle {
+    display: none;
+  }
+}
+@media (max-width: 700px) {
+  .cn-interaction {
+    bottom: 15px;
+    width: calc(100% - 28px);
+    max-height: 51svh;
+    padding: 17px 18px;
+    font-size: 16px;
+  }
+  .cn-scene-dialogue p {
+    font-size: 17px;
+  }
+  .cn-interaction-action,
+  .cn-interaction-choices button {
+    font-size: 15px;
+    padding: 11px;
+  }
+  .cn-interaction-intro {
+    font-size: 14px;
+  }
+}
+@media (max-height: 600px) {
+  .cn-interaction {
+    left: auto;
+    right: 18px;
+    bottom: 15px;
+    transform: none;
+    width: min(440px, 55%);
+    max-height: calc(100svh - 85px);
+    padding: 15px 20px;
+    font-size: 15px;
+  }
+  .cn-scene-dialogue p {
+    font-size: 17px;
+  }
+}
+.cn-dialogue-note {
+  display: block;
+  font:
+    10px/1.4 Arial,
+    sans-serif;
+  color: #72745d;
+  margin: -6px 0 13px;
+}

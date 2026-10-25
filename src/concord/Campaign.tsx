@@ -379,6 +379,7 @@ export default function ConcordCampaign() {
     [paragraph, setParagraph] = useState<number | null>(null);
   const [storageError, setStorageError] = useState(false),
     [confirmReset, setConfirmReset] = useState(false);
+  const [interacting, setInteracting] = useState(false);
   const returnView = useRef<'home' | 'play'>('home'),
     audio = useRef<ConcordAudio | null>(null);
   const positions = useRef<Record<number, { x: number; z: number; yaw: number; pitch?: number }>>(
@@ -403,7 +404,8 @@ export default function ConcordCampaign() {
   }, []);
   useEffect(() => {
     const sound = () => {
-      if (save.music && !document.hidden) audio.current?.start();
+      audio.current?.configure(save.sound, save.music, playAct, view === 'play' && !blocked);
+      if ((save.sound || save.music) && !document.hidden) audio.current?.start();
       else audio.current?.stop();
     };
     sound();
@@ -415,11 +417,13 @@ export default function ConcordCampaign() {
       window.removeEventListener('pointerdown', sound);
       window.removeEventListener('keydown', sound);
     };
-  }, [save.music]);
+  }, [save.music, save.sound, playAct, view, blocked]);
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
       if (
         view !== 'play' ||
+        interacting ||
+        e.defaultPrevented ||
         intro ||
         settings ||
         inspected ||
@@ -436,7 +440,7 @@ export default function ConcordCampaign() {
     };
     window.addEventListener('keydown', key);
     return () => window.removeEventListener('keydown', key);
-  }, [view, intro, settings, inspected, debate, actComplete, paragraph, paused]);
+  }, [view, intro, settings, inspected, debate, actComplete, paragraph, paused, interacting]);
   function openStudy(tab: 'practice' | 'source' | 'journal') {
     returnView.current = view === 'play' ? 'play' : 'home';
     setStudyTab(tab);
@@ -534,6 +538,8 @@ export default function ConcordCampaign() {
             paused={blocked}
             reduced={save.reduced}
             onInspect={inspect}
+            onInteractionActive={setInteracting}
+            onSound={(cue, surface, speed) => audio.current?.play(cue, surface, speed)}
             initialPose={positions.current[playAct]}
             onPosition={(x, z, yaw, pitch) => {
               positions.current[playAct] = { x, z, yaw, pitch };
@@ -543,7 +549,11 @@ export default function ConcordCampaign() {
             <button onClick={() => setPaused(true)} aria-label="Pause game">
               Pause <kbd>Esc</kbd>
             </button>
-            <button onClick={() => openStudy('journal')} aria-label="Open evidence journal">
+            <button
+              disabled={interacting}
+              onClick={() => openStudy('journal')}
+              aria-label="Open evidence journal"
+            >
               Notebook <kbd>J</kbd>
             </button>
           </header>
@@ -553,7 +563,7 @@ export default function ConcordCampaign() {
             </p>
             <h1>{act.name}</h1>
           </div>
-          {found === 3 && !blocked && (
+          {found === 3 && !blocked && !interacting && (
             <div className="cn-ready-action">
               {save.debates.includes(playAct) ? (
                 <>
@@ -587,6 +597,9 @@ export default function ConcordCampaign() {
                     <kbd>W A S D</kbd> walk
                   </span>
                   <span>Drag to look</span>
+                  <span>
+                    <kbd>Shift</kbd> walk briskly
+                  </span>
                   <span>
                     <kbd>E</kbd> examine
                   </span>
@@ -695,6 +708,14 @@ export default function ConcordCampaign() {
         >
           <h2>Options</h2>
           <label className="cn-toggle">
+            <span>World sounds</span>
+            <input
+              type="checkbox"
+              checked={save.sound}
+              onChange={(e) => setSave((s) => ({ ...s, sound: e.target.checked }))}
+            />
+          </label>
+          <label className="cn-toggle">
             <span>Night ambience</span>
             <input
               type="checkbox"
@@ -732,8 +753,10 @@ export default function ConcordCampaign() {
           <details className="cn-options-section">
             <summary>Controls &amp; source</summary>
             <p>
-              WASD or arrows to walk. Drag to look around, or use Q/R to turn. E examines nearby
-              objects. H shows directions. J opens the notebook. Escape pauses.
+              WASD or arrows to walk; Shift walks briskly. Drag to look, use Q/R to turn, or choose
+              Free look to follow the mouse. E begins an encounter; hold E when prompted, or use the
+              on-screen buttons. Number keys choose a reply. Escape steps away or pauses. H shows
+              directions. J opens the notebook.
             </p>
             <p>
               This game adapts Thoreau’s essay into four scenes. The conversations and village are

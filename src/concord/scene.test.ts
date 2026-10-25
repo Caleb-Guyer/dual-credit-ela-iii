@@ -7,6 +7,8 @@ import {
   navigationObstacles,
   nearestClue,
   spawns,
+  treePlacement,
+  RIVER_BENCH,
 } from './navigation';
 
 describe('Concord exploration routes', () => {
@@ -50,6 +52,17 @@ describe('Concord exploration routes', () => {
     expect(isWalkable(0, boxes, 10, -12)).toBe(false);
     expect(isWalkable(0, boxes, 24, 20.1)).toBe(false);
     expect(isWalkable(0, boxes, 100, 0)).toBe(false);
+  });
+  it('plants eastern trees on the far bank and keeps the overlook beside the water', () => {
+    for (let i = 0; i < 24; i++) {
+      const tree = treePlacement(i);
+      expect(tree.x < 18 || tree.x > 33, 'No tree can grow in the river channel').toBe(true);
+    }
+    expect(hotspots.find((point) => point.id === 'c11')).toMatchObject(RIVER_BENCH);
+    const boxes = navigationObstacles(3);
+    expect(isWalkable(3, boxes, RIVER_BENCH.x, RIVER_BENCH.z + 1.6)).toBe(true);
+    expect(isWalkable(3, boxes, 35, 18)).toBe(true);
+    expect(isWalkable(3, boxes, 25, 24)).toBe(false);
   });
   it('keeps cell walls and bed solid without trapping the player', () => {
     const boxes = navigationObstacles(2);

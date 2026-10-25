@@ -1,4 +1,5 @@
 export type Hotspot = { id: string; act: number; label: string; x: number; z: number };
+export const RIVER_BENCH = { x: 14, z: 22.4 } as const;
 export const hotspots: Hotspot[] = [
   { id: 'c01', act: 0, label: 'The town noticeboard', x: -3.3, z: 5 },
   { id: 'c02', act: 0, label: 'The meeting on the common', x: 3.4, z: -4 },
@@ -10,7 +11,7 @@ export const hotspots: Hotspot[] = [
   { id: 'c08', act: 2, label: 'The barred window', x: 3.2, z: -0.8 },
   { id: 'c09', act: 2, label: 'The cell’s narrow bed', x: -2.8, z: 2.8 },
   { id: 'c10', act: 3, label: 'The morning newspaper', x: 0.2, z: 10.8 },
-  { id: 'c11', act: 3, label: 'The river overlook', x: 9, z: 18 },
+  { id: 'c11', act: 3, label: 'The river overlook', ...RIVER_BENCH },
   { id: 'c12', act: 3, label: 'The road back to town', x: -3.2, z: -10 },
 ];
 
@@ -28,6 +29,18 @@ export function sceneryRandom(seed: number) {
   return x - Math.floor(x);
 }
 
+/** The river channel stays clear; the eastern trees grow on the far bank. */
+export function treePlacement(index: number) {
+  const east = index % 2 === 0;
+  const z = -34 + sceneryRandom(index + 18) * 70;
+  const x = east ? 34.5 + sceneryRandom(index + 4) * 12 : -(16.7 + sceneryRandom(index + 4) * 13);
+  return {
+    x: east && Math.abs(z - 18) < 4.5 ? Math.max(40, x) : x,
+    z,
+    scale: 0.7 + sceneryRandom(index + 45) * 0.65,
+  };
+}
+
 /** The renderer and collision checks share this layout, so no GPU is needed to audit routes. */
 export function navigationObstacles(act: number): Collider[] {
   if (act === 2)
@@ -41,21 +54,20 @@ export function navigationObstacles(act: number): Collider[] {
     ];
   const boxes: Collider[] = [
     { x: 0, z: -30, w: 7, d: 5.5 },
-    { x: 24, z: 15.9, w: 18, d: 0.16 },
-    { x: 24, z: 20.1, w: 18, d: 0.16 },
-    { x: 24, z: -16, w: 13, d: 63 },
-    { x: 24, z: 38, w: 13, d: 35 },
+    { x: 25.5, z: 15.9, w: 21, d: 0.16 },
+    { x: 25.5, z: 20.1, w: 21, d: 0.16 },
+    { x: 25, z: -16, w: 14, d: 63 },
+    { x: 25, z: 38, w: 14, d: 35 },
   ];
   for (let i = 0; i < 5; i++) {
     boxes.push({ x: -9.8 - (i % 2) * 0.8, z: -22 + i * 11, w: 7.3, d: 7.3 });
     if (i < 4) boxes.push({ x: 10, z: -23 + i * 11, w: 7.4, d: 7.7 });
   }
   for (let i = 0; i < 24; i++) {
-    const side = i % 2 ? -1 : 1,
-      scale = 0.7 + sceneryRandom(i + 45) * 0.65;
+    const { x, z, scale } = treePlacement(i);
     boxes.push({
-      x: side * (16.7 + sceneryRandom(i + 4) * 13),
-      z: -34 + sceneryRandom(i + 18) * 70,
+      x,
+      z,
       w: 0.6 * scale,
       d: 0.6 * scale,
     });
@@ -66,7 +78,7 @@ export function navigationObstacles(act: number): Collider[] {
 export function isWalkable(act: number, boxes: Collider[], x: number, z: number): boolean {
   if (!Number.isFinite(x) || !Number.isFinite(z)) return false;
   if (act === 2 && (x < -3.95 || x > 3.95 || z < -4.95 || z > 4.8)) return false;
-  if (act !== 2 && (x < -19 || x > 32 || z < -27 || z > 29)) return false;
+  if (act !== 2 && (x < -19 || x > 38 || z < -27 || z > 29)) return false;
   return !boxes.some(
     (b) => Math.abs(x - b.x) < b.w / 2 + 0.32 && Math.abs(z - b.z) < b.d / 2 + 0.32,
   );

@@ -1,11 +1,20 @@
 import * as T from 'three';
 import { paintTexture, type PaintedSurface } from './paint';
+import { Townsperson, jointBetween, type CharacterRole } from './characters';
+import {
+  createMotion,
+  setMotionPose,
+  takeMotionSteps,
+  terrainHeight,
+  updateMotion,
+} from './motion';
 import {
   hotspots,
   spawns,
   navigationObstacles,
-  isWalkable,
   sceneryRandom,
+  treePlacement,
+  RIVER_BENCH,
   INSPECT_DISTANCE,
   type Hotspot,
   type Collider,
@@ -16,6 +25,8 @@ type State = {
   paused: boolean;
   reduced: boolean;
   collected: string[];
+  movementLocked?: boolean;
+  posture?: 'stand' | 'sit' | 'window';
 };
 type Batch = { geometry: T.BufferGeometry; material: T.Material; matrices: T.Matrix4[] };
 
@@ -42,10 +53,26 @@ export class ConcordWorld {
   private last = 0;
   private lastReport = 0;
   private previousNear: string | null = null;
-  private step = 0;
+  private motion = createMotion({ x: 0, z: 0, yaw: 0 });
   private software = false;
   private dummy = new T.Object3D();
   private textures: T.Texture[] = [];
+  private people: Townsperson[] = [];
+  private characterColliders = new Map<Townsperson, Collider>();
+  private interactions = new Map<
+    string,
+    (progress: number, step: number, active: boolean, collected: boolean) => void
+  >();
+  private interaction: { id: string; progress: number; step: number; cue: string | null } | null =
+    null;
+  private frameDt = 1 / 60;
+  private interactionStarted = 0;
+  private previousActionStep: number | null = null;
+  private shownProgress = 0;
+  private beforeInteraction: { yaw: number; pitch: number } | null = null;
+  private returnView: { yaw: number; pitch: number } | null = null;
+  private waterLines: T.Mesh[] = [];
+  private waterMap?: T.Texture;
   near: Hotspot | null = null;
 
   constructor(
@@ -110,6 +137,7 @@ export class ConcordWorld {
     const spawn = spawns[act] ?? spawns[0];
     this.camera.position.set(spawn.x, 1.68, spawn.z);
     this.yaw = spawn.yaw;
+    setMotionPose(this.motion, spawn);
     this.observer = new ResizeObserver(() => this.resize());
     this.observer.observe(canvas);
     this.resize();
@@ -567,78 +595,470 @@ export class ConcordWorld {
     mesh.rotation.z = rotation;
     mesh.position.set(x, y, z);
     this.scene.add(mesh);
+    return mesh;
   }
 
-  private table(x: number, z: number, rotation = 0) {
+  private table(x: number, z: number, rotation = 0, writing = false) {
     this.box('#7b654c', x, 0.98, z, 1.5, 0.12, 0.82, rotation, '', 'wood');
     this.box('#544b3d', x, 0.79, z, 1.3, 0.19, 0.68, rotation, '', 'wood');
     for (const a of [-0.56, 0.56])
       for (const b of [-0.27, 0.27])
         this.box('#63513d', x + a, 0.46, z + b, 0.085, 0.93, 0.085, rotation, '', 'wood');
-    this.paper(x - 0.12, 1.05, z, 0.48, rotation + 0.12);
+    const page = this.paper(x - 0.12, 1.05, z, 0.48, rotation + 0.12);
     this.add('cylinder', '#283f43', x + 0.47, 1.105, z + 0.1, 0.065, 0.12, 0.065);
     this.add('cylinder', '#172c32', x + 0.47, 1.17, z + 0.1, 0.042, 0.035, 0.042);
-    this.segment(
-      '#e8dfc5',
-      new T.Vector3(x + 0.45, 1.18, z + 0.1),
-      new T.Vector3(x + 0.64, 1.5, z + 0.12),
-      0.012,
-    );
+    if (writing) this.writingQuill(x, z, page);
+    else
+      this.segment(
+        '#e8dfc5',
+        new T.Vector3(x + 0.45, 1.18, z + 0.1),
+        new T.Vector3(x + 0.64, 1.5, z + 0.12),
+        0.012,
+      );
     this.box('#6f4539', x + 0.52, 1.06, z - 0.23, 0.27, 0.045, 0.18, -0.1, '', 'cloth');
+    return page;
   }
 
-  private person(x: number, z: number, coat: string, direction: number) {
-    const at = (a: number, y: number, b: number) =>
-      new T.Vector3(
-        x + Math.cos(direction) * a + Math.sin(direction) * b,
-        y,
-        z - Math.sin(direction) * a + Math.cos(direction) * b,
+  private person(
+    name: string,
+    role: CharacterRole,
+    x: number,
+    z: number,
+    coat: string,
+    direction: number,
+    seed: number,
+    bonnet = false,
+  ) {
+    const person = new Townsperson(
+      {
+        name,
+        role,
+        x,
+        z,
+        coat,
+        yaw: direction,
+        seed,
+        bonnet,
+        skin: ['#b99575', '#c4a17d', '#9f785d', '#d1b08b'][seed % 4],
+        hair: ['#514536', '#554c40', '#827867', '#6a5946'][seed % 4],
+      },
+      (color, cloth) => this.mat(color, '', cloth ? 'cloth' : undefined),
+    );
+    this.scene.add(person.group);
+    this.people.push(person);
+    const collider = { x, z, w: 0.18, d: 0.18 };
+    this.boxes.push(collider);
+    this.characterColliders.set(person, collider);
+    return person;
+  }
+
+  private prop(
+    parent: T.Object3D,
+    kind: string,
+    color: string,
+    position: [number, number, number],
+    scale: [number, number, number],
+    finish?: PaintedSurface,
+  ) {
+    const mesh = new T.Mesh(this.geometry(kind), this.mat(color, '', finish));
+    mesh.position.set(...position);
+    mesh.scale.set(...scale);
+    mesh.castShadow = mesh.receiveShadow = true;
+    parent.add(mesh);
+    return mesh;
+  }
+
+  private writingQuill(x: number, z: number, page: T.Mesh) {
+    const quill = new T.Group();
+    quill.position.set(x + 0.47, 1.2, z + 0.1);
+    quill.add(
+      jointBetween(new T.Vector3(), new T.Vector3(0.2, 0.38, 0.02), 0.008, this.mat('#d3c6a4')),
+    );
+    const feather = this.prop(quill, 'sphere', '#e2d8ba', [0.15, 0.28, 0.02], [0.035, 0.16, 0.013]);
+    feather.rotation.z = -0.48;
+    this.scene.add(quill);
+    const rest = quill.position.clone();
+    const ink = new T.Group();
+    ink.position.set(x - 0.12, 1.057, z);
+    for (let row = 0; row < 4; row++)
+      this.prop(
+        ink,
+        'box',
+        '#3c4841',
+        [-0.06 + (row % 2) * 0.015, 0, -0.17 + row * 0.09],
+        [0.2 - (row % 2) * 0.04, 0.001, 0.007],
       );
-    const piece = (
-      kind: string,
-      color: string,
-      a: number,
-      y: number,
-      b: number,
-      sx: number,
-      sy: number,
-      sz: number,
-      finish?: PaintedSurface,
-    ) => {
-      const p = at(a, y, b);
-      this.add(kind, color, p.x, p.y, p.z, sx, sy, sz, direction, '', finish);
-    };
-    piece('coat', coat, 0, 1.01, 0, 0.25, 0.79, 0.19, 'cloth');
-    piece('sphere', '#e4d5b8', 0, 1.42, 0.035, 0.1, 0.08, 0.08);
-    piece('box', '#d6c4a0', 0, 1.22, 0.176, 0.16, 0.3, 0.025);
-    piece('box', '#302e2c', 0, 1.45, 0.16, 0.045, 0.09, 0.035);
-    for (let button = 0; button < 4; button++)
-      piece('sphere', '#ba9f65', 0.025, 1.31 - button * 0.105, 0.192, 0.014, 0.014, 0.014);
+    this.scene.add(ink);
+    this.interactions.set('c07', (p, step, active, collected) => {
+      const t = T.MathUtils.smoothstep(p, 0, 1);
+      quill.position.copy(rest);
+      quill.rotation.set(0, 0, 0);
+      ink.visible = active ? step > 0 && p > 0.2 : collected;
+      ink.scale.x = active && step > 0 ? Math.max(0.01, p) : 1;
+      if (!active) return;
+      if (step === 0) quill.position.y -= Math.sin(p * Math.PI) * 0.13;
+      else {
+        quill.position.lerp(
+          new T.Vector3(x - 0.21 + t * 0.2, 1.06, z - 0.15 + t * 0.3),
+          Math.min(1, t * 4),
+        );
+        quill.position.x += Math.sin(p * 55) * 0.013;
+        quill.rotation.z = -0.42;
+      }
+      page.rotation.z = 0.12;
+    });
+  }
+
+  setInteraction(id: string, progress: number, step: number, cue: string | null = null) {
+    if (!this.interaction) {
+      this.beforeInteraction = { yaw: this.yaw, pitch: this.pitch };
+      this.returnView = null;
+    }
+    if (this.interaction?.id !== id || this.interaction.step !== step) {
+      this.previousActionStep =
+        this.interaction?.id === id &&
+        this.interaction.step === 0 &&
+        ['c02', 'c04', 'c07', 'c08', 'c11'].includes(id)
+          ? 0
+          : null;
+      this.interactionStarted = this.time;
+      this.shownProgress = 0;
+    }
+    this.interaction = { id, progress: T.MathUtils.clamp(progress, 0, 1), step, cue };
+  }
+
+  clearInteraction() {
+    this.interaction = null;
+    this.previousActionStep = null;
+    this.shownProgress = 0;
+    this.returnView = this.beforeInteraction;
+    this.beforeInteraction = null;
+  }
+
+  drainFootsteps() {
+    return takeMotionSteps(this.motion);
+  }
+
+  private ledger() {
+    this.box('#775043', -4.1, 0.73, 8.9, 0.68, 0.08, 0.49, 0, '', 'cloth');
+    this.box('#c8b894', -4.1, 0.78, 8.9, 0.62, 0.035, 0.43);
+    this.paper(-4.26, 0.801, 8.9, 0.25, 0, 'Accounts');
+    const leaf = new T.Group();
+    leaf.position.set(-4.1, 0.804, 8.9);
+    leaf.add(this.paper(0.15, 0, 0, 0.27, 0, 'Due / paid'));
+    this.scene.add(leaf);
+    this.interactions.set('c05', (p, step, active, collected) => {
+      const turn = active ? (step > 0 ? 1 : T.MathUtils.smoothstep(p, 0, 1)) : collected ? 1 : 0;
+      leaf.rotation.z = turn * Math.PI * 0.92;
+      leaf.position.y = 0.804 + Math.sin(turn * Math.PI) * 0.025;
+    });
+    // The merchant's scales and parcels make this a working stall with a reason to stop.
+    this.box('#8d795a', -4.88, 0.35, 8.26, 0.58, 0.7, 0.63, 0, '', 'wood');
+    for (const z of [8.05, 8.45]) this.box('#65553f', -4.88, 0.7, z, 0.6, 0.03, 0.03);
+    this.box('#c2b493', -4.88, 0.8, 8.26, 0.32, 0.2, 0.29, -0.08, '', 'paper');
+    this.box('#726549', -4.88, 0.91, 8.26, 0.018, 0.02, 0.3);
+  }
+
+  private jailDoor() {
+    const x = 4.4,
+      z = -20.05;
+    for (const side of [-1, 1])
+      this.box('#777764', x + side * 1.1, 1.38, z, 0.25, 2.76, 0.35, 0, '', 'stone');
+    this.box('#aaa38a', x, 2.82, z, 2.5, 0.23, 0.43, 0, '', 'stone');
+    this.box('#8f8c75', x, 0.08, z + 0.1, 2.5, 0.16, 0.7, 0, '', 'stone');
+    const gate = new T.Group();
+    gate.position.set(x - 0.95, 0.15, z);
+    this.prop(gate, 'box', '#485048', [0.95, 0.1, 0], [1.9, 0.14, 0.1]);
+    this.prop(gate, 'box', '#485048', [0.95, 2.41, 0], [1.9, 0.14, 0.1]);
+    for (let bar = 0; bar < 7; bar++)
+      this.prop(gate, 'cylinder', '#3d4842', [0.1 + bar * 0.28, 1.25, 0], [0.025, 2.3, 0.025]);
+    this.prop(gate, 'box', '#485048', [0.95, 1.16, 0], [1.9, 0.07, 0.09]);
+    const latch = this.prop(gate, 'box', '#aa9670', [1.67, 1.16, 0.08], [0.36, 0.065, 0.06]);
+    this.prop(gate, 'box', '#535a4d', [1.75, 1.16, 0.035], [0.21, 0.27, 0.06]);
+    this.scene.add(gate);
+    this.interactions.set('c06', (p, step, active, collected) => {
+      gate.rotation.y = collected ? -0.68 : 0;
+      latch.position.x = 1.67;
+      if (active) {
+        latch.position.x -= step > 0 ? 0.2 : p * 0.2;
+        gate.rotation.y =
+          step === 0
+            ? Math.sin(p * Math.PI * 9) * 0.012 * p
+            : -T.MathUtils.smoothstep(p, 0, 1) * 0.68;
+      }
+    });
+    this.boxes.push({ x, z, w: 2.5, d: 0.28 });
+  }
+
+  private morningPaper() {
+    const paper = new T.Group();
+    paper.position.set(0.2, 0.055, 10.8);
+    const left = this.paper(-0.17, 0, 0, 0.33, 0, 'The Concord paper');
+    const right = new T.Group();
+    right.add(this.paper(0.17, 0.003, 0, 0.33, 0, 'This morning'));
+    paper.add(left, right);
+    this.scene.add(paper);
+    this.interactions.set('c10', (p, step, active, collected) => {
+      const unfold = active ? (step > 0 ? 1 : T.MathUtils.smoothstep(p, 0, 1)) : 0;
+      right.rotation.z = (1 - unfold) * -Math.PI * 0.91;
+      paper.position.y =
+        0.055 + (active ? (step > 0 ? 0.8 : T.MathUtils.smoothstep(p, 0, 0.4) * 0.8) : 0);
+      paper.rotation.x = active ? -0.2 : 0;
+      paper.rotation.y = active ? -0.15 : 0.17;
+      paper.visible = !collected || active;
+    });
+  }
+
+  private letterbox() {
+    this.box('#6c5b43', -3.2, 1.2, -10, 0.7, 0.37, 0.38, 0, '', 'wood');
+    this.box('#303e37', -3.2, 1.395, -10, 0.58, 0.02, 0.29);
+    this.box('#d9ccab', -3.2, 1.21, -9.799, 0.41, 0.15, 0.012);
+    this.sign('POST', -3.2, 1.23, -9.789, 0.3);
+    const lid = new T.Group();
+    lid.position.set(-3.2, 1.4, -10.2);
+    this.prop(lid, 'box', '#827052', [0, 0.03, 0.2], [0.78, 0.08, 0.48], 'wood');
+    this.prop(lid, 'sphere', '#c2aa73', [0, 0.07, 0.39], [0.035, 0.03, 0.025]);
+    this.scene.add(lid);
+    const letter = this.paper(-3.2, 1.4, -10, 0.34, 0, 'To a fellow citizen');
+    this.interactions.set('c12', (p, step, active, collected) => {
+      const open = active ? (step > 0 ? 1 : T.MathUtils.smoothstep(p, 0, 1)) : collected ? 1 : 0;
+      lid.rotation.x = -open * 1.35;
+      letter.position.set(-3.2, 1.4, -10);
+      letter.rotation.x = -Math.PI / 2;
+      letter.visible = active && step > 0;
+      if (active && step > 0) {
+        letter.position.y += p * 0.6;
+        letter.position.z += p * 0.45;
+        letter.rotation.x += p * 0.9;
+      }
+    });
+  }
+
+  private workingYards() {
+    // Drying sheets, type trays and an ink roller explain the printer's trade at a glance.
+    this.box('#66543e', -5.7, 0.56, -14.35, 1.03, 1.12, 0.47, 0, '', 'wood');
+    for (const z of [-14.52, -14.18]) {
+      this.box('#8f7958', -5.7, 1.15, z, 1.08, 0.065, 0.07, 0, '', 'wood');
+      for (let type = 0; type < 7; type++)
+        this.box(
+          type % 3 === 0 ? '#424b43' : '#63695b',
+          -6.1 + type * 0.13,
+          1.18,
+          z,
+          0.08,
+          0.065,
+          0.09,
+        );
+    }
+    this.segment(
+      '#a99c7b',
+      new T.Vector3(-6.03, 2.5, -14.4),
+      new T.Vector3(-6.03, 2.5, -11.6),
+      0.009,
+    );
+    for (const z of [-13.9, -13.1, -12.3]) {
+      const sheet = this.paper(-6.03, 2.16, z, 0.42, 0.02, 'Concord');
+      sheet.rotation.set(0, Math.PI / 2, 0.025);
+      this.box('#7a6547', -6.03, 2.46, z, 0.06, 0.11, 0.035);
+    }
+    // Split logs, a rain barrel and a crooked trellis belong to particular households.
+    for (let row = 0; row < 3; row++)
+      for (let log = 0; log < 4 - row; log++) {
+        const piece = this.prop(
+          this.scene,
+          'cylinder',
+          log % 2 ? '#7b6647' : '#8c7351',
+          [-5.7, 0.11 + row * 0.19, 1.45 + log * 0.2 + row * 0.09],
+          [0.105, 0.7, 0.105],
+          'wood',
+        );
+        piece.rotation.z = Math.PI / 2;
+        const end = this.prop(
+          this.scene,
+          'cylinder',
+          '#b19a70',
+          [-5.34, 0.11 + row * 0.19, 1.45 + log * 0.2 + row * 0.09],
+          [0.086, 0.014, 0.086],
+        );
+        end.rotation.z = Math.PI / 2;
+      }
+    this.add('cylinder', '#7e6b4d', -5.9, 0.52, -1.55, 0.36, 0.98, 0.36, 0, '', 'wood');
+    for (const y of [0.15, 0.54, 0.91])
+      this.add('cylinder', '#4f5a4e', -5.9, y, -1.55, 0.37, 0.045, 0.37);
+    this.add('cylinder', '#3a4d44', -5.9, 1.025, -1.55, 0.28, 0.012, 0.28);
+    this.segment('#7c7358', new T.Vector3(-6.1, 0.1, 11.8), new T.Vector3(-6.02, 2.7, 11.7), 0.032);
+    this.segment('#7c7358', new T.Vector3(-6.1, 0.1, 13.8), new T.Vector3(-6.02, 2.7, 13.9), 0.032);
+    for (const y of [0.65, 1.25, 1.85, 2.45]) this.box('#958767', -6.04, y, 12.8, 0.04, 0.035, 2.3);
+    for (let vine = 0; vine < 8; vine++) {
+      const y = 0.3 + vine * 0.27;
+      const z = 12.8 + Math.sin(vine * 1.7) * 0.75;
+      this.add('sphere', vine % 2 ? '#72855d' : '#83946b', -5.97, y, z, 0.09, 0.12, 0.2);
+    }
+    // One parked handcart gives the lane an irregular, lived-in edge.
+    const cart = new T.Group();
+    cart.position.set(5.7, 0, 4.7);
+    cart.rotation.y = -0.16;
+    this.prop(cart, 'box', '#8c7754', [0, 0.6, 0], [1.07, 0.12, 1.25], 'wood');
     for (const side of [-1, 1]) {
-      this.segment(
-        '#434440',
-        at(side * 0.115, 0.64, 0),
-        at(side * 0.13, 0.13, side * 0.015),
-        0.078,
-        'cloth',
+      for (const y of [0.73, 0.96])
+        this.prop(cart, 'box', '#a18b65', [side * 0.56, y, 0], [0.08, 0.16, 1.32], 'wood');
+      this.prop(cart, 'box', '#7d6b4c', [side * 0.36, 0.48, 1.02], [0.075, 0.075, 1.15], 'wood');
+      const wheel = this.prop(
+        cart,
+        'cylinder',
+        '#514d3c',
+        [side * 0.71, 0.37, -0.09],
+        [0.34, 0.075, 0.34],
       );
-      piece('sphere', '#2a3031', side * 0.13, 0.09, 0.06, 0.095, 0.09, 0.16);
-      this.segment(coat, at(side * 0.21, 1.34, 0), at(side * 0.3, 0.95, 0.05), 0.078, 'cloth');
-      this.segment(coat, at(side * 0.3, 0.95, 0.05), at(side * 0.25, 0.77, 0.15), 0.065, 'cloth');
-      piece('sphere', '#c29e7d', side * 0.25, 0.75, 0.16, 0.055, 0.075, 0.05);
+      wheel.rotation.z = Math.PI / 2;
+      const hub = this.prop(
+        cart,
+        'cylinder',
+        '#a38c62',
+        [side * 0.765, 0.37, -0.09],
+        [0.075, 0.1, 0.075],
+      );
+      hub.rotation.z = Math.PI / 2;
+      for (let spoke = 0; spoke < 4; spoke++) {
+        const angle = (spoke * Math.PI) / 4;
+        const strut = this.prop(
+          cart,
+          'box',
+          '#a38c62',
+          [side * 0.758, 0.37, -0.09],
+          [0.02, 0.59, 0.028],
+        );
+        strut.rotation.x = angle;
+      }
     }
-    piece('sphere', '#b79676', 0, 1.66, 0, 0.155, 0.205, 0.14);
-    piece('sphere', '#4a4036', 0, 1.73, -0.045, 0.163, 0.16, 0.13);
-    for (const side of [-1, 1]) {
-      piece('sphere', '#c6a382', side * 0.15, 1.66, 0, 0.035, 0.055, 0.035);
-      piece('sphere', '#333b3a', side * 0.055, 1.69, 0.126, 0.016, 0.014, 0.012);
-      piece('box', '#67513e', side * 0.055, 1.722, 0.128, 0.045, 0.01, 0.012);
+    for (const z of [-0.61, 0.61])
+      this.prop(cart, 'box', '#8d7958', [0, 0.85, z], [1.15, 0.4, 0.08], 'wood');
+    this.prop(cart, 'sphere', '#a89c7d', [-0.16, 0.86, -0.12], [0.29, 0.25, 0.36], 'cloth');
+    this.prop(cart, 'sphere', '#978b6f', [0.22, 0.83, 0.21], [0.25, 0.21, 0.28], 'cloth');
+    this.scene.add(cart);
+    this.boxes.push(
+      { x: 5.7, z: 4.7, w: 1.3, d: 1.5 },
+      { x: -5.7, z: 1.9, w: 0.8, d: 1.1 },
+      { x: -5.9, z: -1.55, w: 0.65, d: 0.65 },
+      { x: -3.3, z: 5, w: 1.5, d: 0.15 },
+      { x: -4.9, z: -13, w: 1.5, d: 0.82 },
+      { x: 3.7, z: -9.2, w: 1.5, d: 0.82 },
+      { x: -4.1, z: 8.9, w: 0.82, d: 0.72 },
+      { ...RIVER_BENCH, w: 0.64, d: 1.8 },
+      { x: -3.2, z: -10, w: 0.7, d: 0.38 },
+    );
+  }
+
+  private riverbank(dawn: boolean) {
+    const canvas = document.createElement('canvas');
+    canvas.width = canvas.height = 512;
+    const ctx = canvas.getContext('2d')!;
+    ctx.fillStyle = dawn ? '#3b7882' : '#214c61';
+    ctx.fillRect(0, 0, 512, 512);
+    for (let ripple = 0; ripple < 240; ripple++) {
+      const x = this.random(ripple + 1700) * 512;
+      const y = this.random(ripple + 2000) * 512;
+      const length = 18 + this.random(ripple + 2400) * 130;
+      ctx.strokeStyle = ripple % 3 ? 'rgba(164,211,204,.32)' : 'rgba(13,54,72,.35)';
+      ctx.lineWidth = ripple % 4 === 0 ? 2 : 0.8;
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.bezierCurveTo(x - 3, y + length * 0.3, x + 3, y + length * 0.6, x, y + length);
+      ctx.stroke();
     }
-    piece('sphere', '#b28d6b', 0, 1.635, 0.14, 0.027, 0.047, 0.04);
-    piece('box', '#765644', 0, 1.578, 0.127, 0.045, 0.012, 0.015);
-    piece('cylinder', '#363c3d', 0, 1.865, -0.005, 0.22, 0.045, 0.21);
-    piece('cylinder', '#363c3d', 0, 1.99, -0.005, 0.143, 0.22, 0.14, 'cloth');
-    piece('cylinder', '#8e7c5d', 0, 1.92, -0.005, 0.146, 0.034, 0.144);
+    const map = new T.CanvasTexture(canvas);
+    map.colorSpace = T.SRGBColorSpace;
+    map.wrapS = map.wrapT = T.RepeatWrapping;
+    map.repeat.set(3, 18);
+    map.anisotropy = 4;
+    this.textures.push(map);
+    this.waterMap = map;
+    const surface = new T.Mesh(
+      new T.PlaneGeometry(14, 110),
+      new T.MeshStandardMaterial({
+        map,
+        roughness: 0.42,
+        metalness: 0.06,
+        emissive: '#123c49',
+        emissiveIntensity: 0.12,
+      }),
+    );
+    surface.rotation.x = -Math.PI / 2;
+    surface.position.set(25, -0.012, 15);
+    this.scene.add(surface);
+
+    // The far shore undulates instead of ending the water in a ruler-straight strip.
+    const vertices: number[] = [],
+      indices: number[] = [];
+    for (let row = 0; row <= 38; row++) {
+      const z = -42 + row * 3;
+      const edge = 32.1 + Math.sin(z * 0.23) * 0.38 + Math.sin(z * 0.71) * 0.13;
+      vertices.push(edge, 0.055, z, 49, 0.04, z);
+      if (row < 38) {
+        const a = row * 2;
+        indices.push(a, a + 2, a + 1, a + 2, a + 3, a + 1);
+      }
+    }
+    const shoreGeometry = new T.BufferGeometry();
+    shoreGeometry.setAttribute('position', new T.Float32BufferAttribute(vertices, 3));
+    shoreGeometry.setIndex(indices);
+    shoreGeometry.computeVertexNormals();
+    const shore = new T.Mesh(shoreGeometry, this.mat(dawn ? '#758463' : '#3f5748'));
+    shore.receiveShadow = true;
+    this.scene.add(shore);
+
+    for (let i = 0; i < 42; i++) {
+      const z = -35 + i * 2.6 + Math.sin(i * 1.9) * 0.62;
+      if (z > 14.8 && z < 21.2) continue;
+      if (i % 5 === 4) continue;
+      const x = 17.85 + Math.sin(i * 2.1) * 0.23;
+      this.add(
+        'sphere',
+        i % 3 ? '#778274' : '#929582',
+        x,
+        0.025,
+        z,
+        0.28 + this.random(i) * 0.24,
+        0.12 + this.random(i + 80) * 0.11,
+        0.42,
+      );
+      this.add(
+        'sphere',
+        '#677e6a',
+        32.1 + Math.sin(z * 0.23) * 0.38,
+        0.025,
+        z + 0.7,
+        0.3,
+        0.14,
+        0.5,
+      );
+      if (i % 2 === 0)
+        for (let stem = 0; stem < 3; stem++) {
+          const rx = x - 0.24 - stem * 0.09,
+            rz = z + stem * 0.18;
+          const height = 0.55 + this.random(i + stem + 400) * 0.36;
+          this.add('cylinder', '#6f8051', rx, height / 2, rz, 0.012, height, 0.012);
+          this.add('sphere', '#726146', rx, height, rz, 0.027, 0.11, 0.027);
+          this.segment(
+            '#83905a',
+            new T.Vector3(rx, 0.17, rz),
+            new T.Vector3(rx - 0.17, height * 0.7, rz + 0.08),
+            0.013,
+          );
+        }
+    }
+    // Worn stones lead off the lane to the seat, without making another paved street.
+    for (let i = 0; i < 7; i++)
+      this.add(
+        'sphere',
+        '#92967c',
+        8.5 + i * 0.79,
+        0.02,
+        21.7 + Math.sin(i * 0.8) * 0.14,
+        0.35,
+        0.035,
+        0.26,
+      );
   }
 
   private sign(text: string, x: number, y: number, z: number, width = 2.2, rotation = 0) {
@@ -735,13 +1155,8 @@ export class ConcordWorld {
     ])
       this.lantern(x, z);
     for (let i = 0; i < 24; i++) {
-      const side = i % 2 ? -1 : 1;
-      this.tree(
-        side * (16.7 + this.random(i + 4) * 13),
-        -34 + this.random(i + 18) * 70,
-        0.7 + this.random(i + 45) * 0.65,
-        i,
-      );
+      const tree = treePlacement(i);
+      this.tree(tree.x, tree.z, tree.scale, i);
     }
     // Gardens sit beyond the road edge; their repeated rails make a coherent boundary.
     for (const side of [-1, 1])
@@ -768,24 +1183,49 @@ export class ConcordWorld {
         }
       }
     // River, timber bridge and a narrow bank.
-    this.box(dawn ? '#839e9b' : '#334f5a', 25, -0.08, 15, 14, 0.12, 110);
-    for (let i = 0; i < 22; i++)
-      this.box(
+    this.riverbank(dawn);
+    for (let i = 0; i < 22; i++) {
+      const line = this.prop(
+        this.scene,
+        'box',
         dawn ? '#b1beb0' : '#819895',
-        19.2 + this.random(i + 70) * 11,
-        0,
-        -35 + i * 4,
-        1 + this.random(i) * 3,
-        0.008,
-        0.02,
-        this.random(i) * 0.2,
+        [19.2 + this.random(i + 70) * 11, 0, -35 + i * 4],
+        [1 + this.random(i) * 3, 0.008, 0.025],
       );
-    this.box('#9a8969', 24, 0.6, 18, 18, 0.35, 4.3, 0, '', 'wood');
-    for (let i = 0; i < 35; i++) this.box('#6b6651', 15.4 + i * 0.5, 0.8, 18, 0.025, 0.025, 4.2);
+      line.rotation.y = this.random(i) * 0.2;
+      this.waterLines.push(line);
+    }
+    // Each plank follows the physical approach: the bridge rises under your feet.
+    for (let i = 0; i < 43; i++) {
+      const x = 14.65 + i * 0.5;
+      const y = terrainHeight(this.act, x, 18);
+      const plank = this.prop(
+        this.scene,
+        'box',
+        i % 4 === 0 ? '#aa9774' : '#9a8969',
+        [x, y - 0.09, 18],
+        [0.49, 0.18, 4.3],
+        'wood',
+      );
+      plank.rotation.z = Math.atan2(
+        terrainHeight(this.act, x + 0.25, 18) - terrainHeight(this.act, x - 0.25, 18),
+        0.5,
+      );
+    }
     for (const z of [15.9, 20.1]) {
-      this.box('#b7a581', 24, 1.65, z, 18, 0.1, 0.13, 0, '', 'wood');
-      for (let x = 15.6; x < 33; x += 2.1)
-        this.box('#85745b', x, 1.1, z, 0.13, 1.25, 0.13, 0, '', 'wood');
+      for (let x = 15; x < 35.7; x += 1.5) {
+        const y = terrainHeight(this.act, x, 18);
+        this.box('#85745b', x, y + 0.55, z, 0.13, 1.25, 0.13, 0, '', 'wood');
+        const rail = this.prop(
+          this.scene,
+          'box',
+          '#b7a581',
+          [x + 0.75, y + 1.05, z],
+          [1.52, 0.1, 0.13],
+          'wood',
+        );
+        rail.rotation.z = Math.atan2(terrainHeight(this.act, x + 1.5, 18) - y, 1.5);
+      }
     }
     this.box('#75816a', 10.9, 0.03, 18, 9, 0.15, 5);
     // The noticeboard carries actual sheets, with a pitched wooden cap and iron tacks.
@@ -794,6 +1234,7 @@ export class ConcordWorld {
     this.box('#66533e', -3.3, 2.4, 5, 1.75, 0.09, 0.36);
     const notices = ['TOWN MEETING', 'PUBLIC NOTICE', 'LECTURE'];
     for (let i = 0; i < 3; i++) {
+      if (i === 1) continue;
       const sheet = new T.Mesh(new T.PlaneGeometry(0.34, 0.65), this.mat('#e9ddbc', '', 'paper'));
       sheet.position.set(-3.7 + i * 0.39, 1.79 + (i === 1 ? 0.06 : 0), 5.082);
       sheet.rotation.z = (i - 1) * 0.025;
@@ -811,35 +1252,128 @@ export class ConcordWorld {
         );
       this.add('sphere', '#756346', -3.7 + i * 0.39, 2.07, 5.09, 0.014, 0.014, 0.012);
     }
-    this.person(3.9, -4.4, '#685441', -0.6);
-    this.person(4.1, -2.7, '#536b60', -2.1);
-    this.table(-4.9, -13);
+    const noticePivot = new T.Group();
+    noticePivot.position.set(-3.31, 2.13, 5.105);
+    const notice = this.paper(0, -0.31, 0, 0.45, 0, 'PUBLIC NOTICE');
+    notice.rotation.x = 0;
+    noticePivot.add(notice);
+    this.scene.add(noticePivot);
+    this.interactions.set('c01', (p, step, active, collected) => {
+      noticePivot.position.set(-3.31, 2.13, 5.105);
+      noticePivot.rotation.set(0, 0, 0);
+      notice.visible = !collected || active;
+      if (active) {
+        noticePivot.rotation.x = step === 0 ? -Math.sin(p * Math.PI) * 0.3 : -0.4;
+        noticePivot.rotation.z = step === 0 ? Math.sin(p * Math.PI) * -0.08 : -0.06;
+        if (step > 0) {
+          noticePivot.position.z += T.MathUtils.smoothstep(p, 0, 1) * 0.5;
+          noticePivot.position.y += T.MathUtils.smoothstep(p, 0, 1) * 0.2;
+        }
+      }
+    });
+    this.person('Ruth, a neighbor', 'neighbor', 3.95, -4.75, '#78604a', -0.1, 2, true);
+    this.person('Elias, a neighbor', 'neighbor', 4.12, -3.2, '#536b60', -2.85, 1);
+    this.person('Samuel, the printer', 'printer', -5.65, -13.2, '#6b7564', 0.8, 0);
+    const printPage = this.table(-4.9, -13);
     // The printer's small hand press has its own silhouette and a sheet under the platen.
     for (const x of [-5.5, -4.3]) this.box('#4b4439', x, 1.54, -13, 0.1, 1.05, 0.12, 0, '', 'wood');
     this.box('#5c4e3c', -4.9, 2.04, -13, 1.4, 0.18, 0.25, 0, '', 'wood');
-    this.add('cylinder', '#4d514b', -4.9, 1.83, -13, 0.05, 0.57, 0.05);
-    this.box('#4f5145', -4.9, 1.5, -13, 0.94, 0.08, 0.59);
-    this.box('#7f684b', -4.9, 2.16, -13, 0.78, 0.055, 0.065, 0.12);
-    this.table(3.7, -9.2);
-    this.person(5.1, -9.3, '#4f5a68', -0.35);
+    const screw = this.prop(
+      this.scene,
+      'cylinder',
+      '#4d514b',
+      [-4.9, 1.83, -13],
+      [0.05, 0.57, 0.05],
+    );
+    for (let ring = 0; ring < 7; ring++)
+      this.add('cylinder', '#788073', -4.9, 1.62 + ring * 0.055, -13, 0.065, 0.013, 0.065);
+    const platen = this.prop(this.scene, 'box', '#4f5145', [-4.9, 1.5, -13], [0.94, 0.08, 0.59]);
+    const lever = new T.Group();
+    lever.position.set(-4.9, 2.16, -13);
+    this.prop(lever, 'box', '#7f684b', [0.24, 0, 0], [1.2, 0.065, 0.07], 'wood');
+    this.prop(lever, 'sphere', '#554936', [0.84, 0, 0], [0.07, 0.07, 0.07]);
+    this.scene.add(lever);
+    this.interactions.set('c03', (p, step, active, collected) => {
+      const cycle = active && step === 0 ? Math.sin(p * Math.PI) : 0;
+      lever.rotation.y = cycle * 1.7;
+      screw.position.y = 1.83 - cycle * 0.27;
+      platen.position.y = 1.5 - cycle * 0.27;
+      printPage.position.set(-5.02, 1.05, -13);
+      printPage.rotation.x = -Math.PI / 2;
+      if (active && step > 0) {
+        printPage.position.y += T.MathUtils.smoothstep(p, 0, 1) * 0.55;
+        printPage.position.z += p * 0.3;
+        printPage.rotation.x += p * 0.8;
+      }
+      printPage.visible = !collected || active;
+    });
+    const taxBill = this.table(3.7, -9.2);
+    this.person('Mr. Lowell, the collector', 'collector', 4.85, -9.8, '#4f5a68', -0.65, 3);
+    this.person('Mrs. Bell, the merchant', 'merchant', -5.05, 8.75, '#795a48', 0.9, 2);
+    this.person('Jonas, the jailer', 'jailer', 5.15, -20.3, '#6a6c5d', -0.6, 1);
+    const taxCoin = this.prop(
+      this.scene,
+      'cylinder',
+      '#b39b65',
+      [3.95, 1.055, -9.43],
+      [0.09, 0.018, 0.09],
+    );
+    taxCoin.name = 'tax-coin';
+    this.prop(taxCoin, 'cylinder', '#d5bd82', [0, 0.58, 0], [0.72, 0.11, 0.72]);
+    this.interactions.set('c04', (p, step, active, collected) => {
+      const target = new T.Vector3(3.95, 1.055, -9.43);
+      let rotation = 0;
+      taxBill.position.y = 1.05;
+      if (active) {
+        if (step === 0) taxBill.position.y += Math.sin(p * Math.PI) * 0.1;
+        else {
+          const cue = this.interaction?.cue;
+          if (cue === 'offer-coin') target.set(3.95, 1.065, -9.08);
+          else {
+            const reach = cue === 'refuse-tax' ? 0.6 : 0.92;
+            target.set(
+              this.camera.position.x - Math.sin(this.yaw) * reach,
+              this.camera.position.y - (cue === 'refuse-tax' ? 0.35 : 0.48),
+              this.camera.position.z - Math.cos(this.yaw) * reach,
+            );
+            rotation = cue === 'refuse-tax' ? 0.8 : 0.3;
+          }
+        }
+      }
+      taxCoin.position.lerp(target, 1 - Math.exp(-this.frameDt * 8));
+      taxCoin.rotation.z = T.MathUtils.damp(taxCoin.rotation.z, rotation, 8, this.frameDt);
+      taxCoin.visible = active || !collected;
+    });
     this.box('#8b7758', -4.1, 0.34, 8.9, 0.82, 0.68, 0.72, 0, '', 'wood');
     this.box('#7c684e', -4.55, 0.21, 9.46, 0.56, 0.42, 0.53, -0.08, '', 'wood');
-    this.box('#775043', -4.1, 0.73, 8.9, 0.48, 0.09, 0.4, 0, '', 'cloth');
-    this.box('#d3c5a4', -4.1, 0.73, 8.92, 0.42, 0.05, 0.33);
-    if (this.act === 3) this.paper(0.2, 0.05, 10.8, 0.67, 0.17, 'The morning paper');
-    // A proper slatted bench by the water, not a featureless block.
-    for (const z of [17.82, 18.02, 18.22])
-      this.box('#8d7959', 9, 0.55, z, 1.8, 0.07, 0.16, 0, '', 'wood');
-    for (const x of [8.35, 9.65]) {
-      this.box('#4f5446', x, 0.28, 18, 0.09, 0.55, 0.54);
-      this.box('#4f5446', x, 0.88, 17.65, 0.09, 0.8, 0.09);
+    this.ledger();
+    this.jailDoor();
+    if (this.act === 3) {
+      this.morningPaper();
+      this.person('A morning reader', 'walker', 2.5, 11.6, '#7d7157', 0, 4);
     }
-    for (const y of [0.83, 1.03]) this.box('#8d7959', 9, y, 17.65, 1.8, 0.15, 0.07, 0, '', 'wood');
-    if (this.act === 3) this.paper(9, 0.6, 18, 0.4, -0.2, 'A better government');
+    // A proper slatted bench by the water, not a featureless block.
+    const { x: bx, z: bz } = RIVER_BENCH;
+    for (const offset of [-0.18, 0.02, 0.22])
+      this.box('#8d7959', bx + offset, 0.55, bz, 0.16, 0.07, 1.8, 0, '', 'wood');
+    for (const offset of [-0.65, 0.65]) {
+      this.box('#4f5446', bx, 0.28, bz + offset, 0.54, 0.55, 0.09);
+      this.box('#4f5446', bx - 0.35, 0.88, bz + offset, 0.09, 0.8, 0.09);
+    }
+    for (const y of [0.83, 1.03])
+      this.box('#8d7959', bx - 0.35, y, bz, 0.07, 0.15, 1.8, 0, '', 'wood');
+    if (this.act === 3) {
+      const benchPage = this.paper(bx, 0.6, bz, 0.4, -0.2, 'Road and bridge');
+      this.interactions.set('c11', (p, step, active, collected) => {
+        benchPage.rotation.x =
+          -Math.PI / 2 + (active && step > 0 ? Math.sin(p * Math.PI) * 0.22 : 0);
+        benchPage.position.y = 0.6 + (active ? Math.sin(p * Math.PI) * 0.06 : 0);
+        benchPage.visible = !collected || active;
+      });
+    }
     this.box('#8e7c5b', -3.2, 0.58, -10, 0.13, 1.16, 0.13, 0, '', 'wood');
-    this.box('#6c5b43', -3.2, 1.2, -10, 0.7, 0.37, 0.38, 0, '', 'wood');
-    this.add('roof', '#69634d', -3.2, 1.4, -10, 0.8, 0.32, 0.46);
-    this.box('#d9ccab', -3.2, 1.21, -9.8, 0.41, 0.15, 0.012);
+    this.letterbox();
+    this.workingYards();
     // A distant moon/sun, stars and layered hills establish depth beyond the playable street.
     const skyBody = new T.Mesh(
       new T.SphereGeometry(1, 32, 20),
@@ -941,7 +1475,16 @@ export class ConcordWorld {
     this.box('#a5a18b', 4.5, 2.65, 3.15, 0.5, 2.0, 4.3, 0, '', 'stone');
     this.box('#514f44', 0, 4.55, 0, 9.7, 0.25, 12, 0, '', 'wood');
     for (const z of [-4, -1, 2, 5]) this.box('#4b4438', 0, 4.28, z, 9, 0.28, 0.24, 0, '', 'wood');
-    this.box('#20323f', 4.7, 2.7, -0.8, 0.08, 2.2, 3.5, 0, '#1c2936');
+    // A real fragment of the village lies beyond the opening, at a believable distance.
+    this.box('#58695c', 13, -0.12, 0, 18, 0.18, 23);
+    this.box('#6c7569', 13, 1.45, -1.3, 4.1, 2.9, 3.8, 0, '', 'plaster');
+    this.add('roof', '#2e4144', 13, 2.9, -1.3, 4.8, 2.7, 4.5, 0, '', 'slate');
+    this.box('#706757', 13.3, 4.1, -1.3, 0.43, 1.6, 0.47, 0, '', 'brick');
+    this.box('#8c8065', 13.3, 4.93, -1.3, 0.57, 0.13, 0.6);
+    this.box('#e2c48d', 10.935, 1.85, -0.9, 0.018, 0.77, 0.7, 0, '#70542c');
+    this.box('#514f3e', 10.91, 1.85, -0.9, 0.025, 0.035, 0.72);
+    this.box('#514f3e', 10.91, 1.85, -0.9, 0.025, 0.8, 0.035);
+    this.tree(11.2, 3.6, 0.72, 2);
     for (const z of [-2.3, -1.7, -1.1, -0.5, 0.1, 0.7])
       this.add('cylinder', '#343f3e', 4.2, 2.7, z, 0.032, 2.1, 0.032);
     for (const y of [1.65, 3.75])
@@ -949,6 +1492,25 @@ export class ConcordWorld {
     const windowLight = new T.PointLight('#d5dfdd', 4.5, 13, 1.6);
     windowLight.position.set(3.7, 3, -0.8);
     this.scene.add(windowLight);
+    const shutter = new T.Group();
+    shutter.position.set(4.13, 2.7, -2.32);
+    this.prop(shutter, 'box', '#5d6654', [0, 0, 0.7], [0.075, 1.9, 1.4], 'wood');
+    for (const y of [-0.61, 0.61])
+      this.prop(shutter, 'box', '#3e4c44', [-0.055, y, 0.7], [0.055, 0.12, 1.48]);
+    const shutterLatch = this.prop(
+      shutter,
+      'box',
+      '#b3a071',
+      [-0.07, -0.2, 1.24],
+      [0.045, 0.06, 0.26],
+    );
+    this.scene.add(shutter);
+    this.interactions.set('c08', (p, step, active, collected) => {
+      const open = active ? (step > 0 ? 1 : T.MathUtils.smoothstep(p, 0, 1)) : collected ? 1 : 0;
+      shutter.rotation.y = -0.35 - open * 1.12;
+      shutterLatch.rotation.x = active && step === 0 ? -Math.sin(p * Math.PI) * 0.65 : 0;
+      windowLight.intensity = 3.4 + open * 2.5;
+    });
     const moon = new T.DirectionalLight('#c5d8e2', 0.7);
     moon.position.set(12, 5, -4);
     moon.target.position.set(-3, 0, 1);
@@ -988,7 +1550,7 @@ export class ConcordWorld {
     beam.rotation.z = 0.12;
     beam.position.set(1.1, 0.026, -0.6);
     this.scene.add(beam);
-    this.table(-2.5, -2.8);
+    this.table(-2.5, -2.8, 0, true);
     this.box('#74604a', -2.5, 0.53, -1.7, 0.7, 0.13, 0.62, 0, '', 'wood');
     for (const x of [-2.74, -2.26])
       for (const z of [-1.88, -1.52])
@@ -1001,10 +1563,22 @@ export class ConcordWorld {
     for (const x of [-3.65, -2.35])
       for (const z of [1.04, 3.76]) this.box('#594b37', x, 0.36, z, 0.1, 0.72, 0.1, 0, '', 'wood');
     this.box('#b8a581', -3, 0.67, 2.4, 1.37, 0.23, 2.74, 0, '', 'cloth');
-    this.box('#687766', -3, 0.81, 2.85, 1.4, 0.055, 1.8, 0, '', 'cloth');
+    const blanket = this.prop(
+      this.scene,
+      'box',
+      '#687766',
+      [-3, 0.81, 2.85],
+      [1.4, 0.055, 1.8],
+      'cloth',
+    );
     this.box('#89927a', -3, 0.84, 2.1, 1.41, 0.07, 0.35, 0, '', 'cloth');
     for (const x of [-3.56, -2.44]) this.box('#c1b594', x, 0.848, 2.86, 0.045, 0.008, 1.72);
     this.add('sphere', '#ddd0ae', -3, 0.89, 1.38, 0.57, 0.13, 0.28, 0, '', 'cloth');
+    this.interactions.set('c09', (p, step, active) => {
+      const sit = active ? (step > 0 ? 1 : T.MathUtils.smoothstep(p, 0, 1)) : 0;
+      blanket.position.y = 0.81 - sit * 0.025;
+      blanket.scale.y = 0.055 - sit * 0.012;
+    });
     for (let x = -3.8; x < 4.2; x += 0.48)
       this.add('cylinder', '#38413f', x, 2, 5.3, 0.034, 4, 0.034);
     for (const y of [0.45, 2, 3.8]) this.box('#3c4541', 0, y, 5.3, 8.5, 0.075, 0.075);
@@ -1115,12 +1689,9 @@ export class ConcordWorld {
 
   look(dx: number, dy: number) {
     if (this.getState().paused || this.preview) return;
+    this.returnView = null;
     this.yaw -= dx * 0.004;
     this.pitch = T.MathUtils.clamp(this.pitch - dy * 0.003, -1.05, 1.05);
-  }
-
-  private free(x: number, z: number) {
-    return isWalkable(this.act, this.boxes, x, z);
   }
 
   private frame = (now: number) => {
@@ -1132,9 +1703,10 @@ export class ConcordWorld {
     }
     // Software renderers need fewer frames; physics always uses elapsed time.
     if (this.software && now - this.last < 32) return;
-    const dt = Math.min(0.05, this.last ? (now - this.last) / 1000 : 0.016);
+    const dt = Math.min(0.2, this.last ? (now - this.last) / 1000 : 0.016);
     this.last = now;
     const state = this.getState();
+    this.frameDt = state.paused ? 0 : dt;
     if (!state.paused) this.time += dt;
     if (this.preview) {
       const motion = state.reduced ? 0 : Math.sin(this.time * 0.035) * 0.16;
@@ -1142,52 +1714,119 @@ export class ConcordWorld {
       this.camera.lookAt(-0.6, 2.35, -12);
     } else {
       if (!state.paused) {
-        if (this.keys.has('KeyQ')) this.yaw += dt * 1.25;
-        if (this.keys.has('KeyR')) this.yaw -= dt * 1.25;
-        if (this.keys.has('PageUp')) this.pitch = Math.min(1.05, this.pitch + dt * 0.8);
-        if (this.keys.has('PageDown')) this.pitch = Math.max(-1.05, this.pitch - dt * 0.8);
-        let f =
-          Number(this.keys.has('KeyW') || this.keys.has('ArrowUp')) -
-          Number(this.keys.has('KeyS') || this.keys.has('ArrowDown'));
-        let s =
-          Number(this.keys.has('KeyD') || this.keys.has('ArrowRight')) -
-          Number(this.keys.has('KeyA') || this.keys.has('ArrowLeft'));
-        const length = Math.hypot(f, s);
-        if (length) {
-          f /= length;
-          s /= length;
+        // World may restore an exact pose when returning from the notebook.
+        if (
+          Math.hypot(
+            this.motion.x - this.camera.position.x,
+            this.motion.z - this.camera.position.z,
+          ) > 0.001
+        )
+          setMotionPose(this.motion, {
+            x: this.camera.position.x,
+            z: this.camera.position.z,
+            yaw: this.yaw,
+            pitch: this.pitch,
+          });
+        this.motion.yaw = this.yaw;
+        this.motion.pitch = this.pitch;
+        if (this.returnView && !this.interaction) {
+          if (['KeyQ', 'KeyR', 'PageUp', 'PageDown'].some((key) => this.keys.has(key)))
+            this.returnView = null;
+          else {
+            const angle = Math.atan2(
+              Math.sin(this.returnView.yaw - this.motion.yaw),
+              Math.cos(this.returnView.yaw - this.motion.yaw),
+            );
+            this.motion.yaw += angle * (1 - Math.exp(-dt * 5));
+            this.motion.pitch = T.MathUtils.damp(this.motion.pitch, this.returnView.pitch, 5, dt);
+            if (Math.abs(angle) + Math.abs(this.returnView.pitch - this.motion.pitch) < 0.005)
+              this.returnView = null;
+          }
         }
-        const speed = (this.keys.has('ShiftLeft') || this.keys.has('ShiftRight') ? 5.6 : 3.5) * dt;
-        const dx = (-Math.sin(this.yaw) * f + Math.cos(this.yaw) * s) * speed;
-        const dz = (-Math.cos(this.yaw) * f - Math.sin(this.yaw) * s) * speed;
-        if (this.free(this.camera.position.x + dx, this.camera.position.z))
-          this.camera.position.x += dx;
-        if (this.free(this.camera.position.x, this.camera.position.z + dz))
-          this.camera.position.z += dz;
-        if (length) this.step += dt * 8;
-        const bridgeHeight =
-          this.act !== 2 &&
-          this.camera.position.x > 14.9 &&
-          this.camera.position.z > 15.55 &&
-          this.camera.position.z < 20.45
-            ? 0.8
-            : 0;
-        this.camera.position.y =
-          1.68 + bridgeHeight + (!state.reduced && length ? Math.sin(this.step) * 0.022 : 0);
+        if (this.interaction && state.movementLocked) {
+          const point = hotspots.find((candidate) => candidate.id === this.interaction?.id);
+          const target =
+            point && this.interaction.id === 'c11' && this.interaction.step >= 1
+              ? { ...point, x: 24, z: 25 }
+              : point;
+          if (target) {
+            const targetYaw = Math.atan2(
+              this.camera.position.x - target.x,
+              this.camera.position.z - target.z,
+            );
+            const angle = Math.atan2(
+              Math.sin(targetYaw - this.motion.yaw),
+              Math.cos(targetYaw - this.motion.yaw),
+            );
+            this.motion.yaw += angle * (1 - Math.exp(-dt * 4.2));
+            const heights: Record<string, number> = {
+              c01: 1.9,
+              c02: 1.65,
+              c03: 1.6,
+              c04: 1.2,
+              c05: 0.85,
+              c06: 1.4,
+              c07: 1.17,
+              c08: 2.65,
+              c09: 0.86,
+              c10: 0.85,
+              c11: this.interaction.step >= 1 ? -0.05 : 0.7,
+              c12: 1.55,
+            };
+            // Put the hands/face in the upper third, above the conversation card.
+            const targetPitch =
+              Math.atan2(
+                (heights[target.id] ?? 1.4) - this.motion.eyeHeight,
+                Math.max(
+                  0.8,
+                  Math.hypot(this.camera.position.x - target.x, this.camera.position.z - target.z),
+                ),
+              ) - (this.interaction.id === 'c11' && this.interaction.step >= 1 ? 0 : 0.23);
+            this.motion.pitch +=
+              (T.MathUtils.clamp(targetPitch, -1.05, 1.05) - this.motion.pitch) *
+              (1 - Math.exp(-dt * 3.5));
+          }
+        }
+        updateMotion(
+          this.motion,
+          {
+            forward:
+              Number(this.keys.has('KeyW') || this.keys.has('ArrowUp')) -
+              Number(this.keys.has('KeyS') || this.keys.has('ArrowDown')),
+            strafe:
+              Number(this.keys.has('KeyD') || this.keys.has('ArrowRight')) -
+              Number(this.keys.has('KeyA') || this.keys.has('ArrowLeft')),
+            sprint: this.keys.has('ShiftLeft') || this.keys.has('ShiftRight'),
+            turn: Number(this.keys.has('KeyQ')) - Number(this.keys.has('KeyR')),
+            tilt: Number(this.keys.has('PageUp')) - Number(this.keys.has('PageDown')),
+          },
+          dt,
+          {
+            act: this.act,
+            colliders: this.boxes,
+            reduced: state.reduced,
+            locked: state.movementLocked,
+            posture: state.posture,
+          },
+        );
+        this.yaw = this.motion.yaw;
+        this.pitch = this.motion.pitch;
+        this.camera.position.set(this.motion.x, this.motion.eyeHeight, this.motion.z);
+        this.camera.rotation.z = this.motion.sway;
       }
       this.camera.rotation.order = 'YXZ';
       this.camera.rotation.y = this.yaw;
       this.camera.rotation.x = this.pitch;
       const p = this.camera.position;
       let closest: Hotspot | null = null,
-        distance = INSPECT_DISTANCE;
-      for (const point of hotspots.filter(
-        (h) => h.act === this.act && !state.collected.includes(h.id),
-      )) {
+        distance = Infinity;
+      for (const point of hotspots.filter((h) => h.act === this.act)) {
         const d = Math.hypot(p.x - point.x, p.z - point.z);
-        if (d < distance) {
+        if (d >= INSPECT_DISTANCE) continue;
+        const score = d + (state.collected.includes(point.id) ? 0.15 : 0);
+        if (score < distance) {
           closest = point;
-          distance = d;
+          distance = score;
         }
       }
       this.near = closest;
@@ -1201,13 +1840,49 @@ export class ConcordWorld {
       }
     }
     for (const o of this.objectives) {
-      o.group.visible = !state.collected.includes(o.point.id) && !this.preview;
+      o.group.visible = !state.collected.includes(o.point.id) && !this.preview && !this.interaction;
       o.crystal.quaternion.copy(this.camera.quaternion);
+    }
+    if (this.interaction)
+      this.shownProgress = T.MathUtils.damp(this.shownProgress, this.interaction.progress, 14, dt);
+    for (const person of this.people) {
+      person.update(
+        this.time,
+        state.paused ? 0 : dt,
+        this.camera.position,
+        state.reduced,
+        this.interaction?.id,
+        this.shownProgress,
+      );
+      const collider = this.characterColliders.get(person)!;
+      collider.x = person.group.position.x;
+      collider.z = person.group.position.z;
+    }
+    for (const [id, pose] of this.interactions) {
+      const active = this.interaction?.id === id;
+      const transition =
+        active && this.previousActionStep !== null && this.time - this.interactionStarted < 0.45;
+      pose(
+        active
+          ? transition
+            ? T.MathUtils.smoothstep(this.time - this.interactionStarted, 0, 0.45)
+            : this.shownProgress
+          : 0,
+        active ? (transition ? this.previousActionStep! : this.interaction!.step) : 0,
+        active,
+        state.collected.includes(id),
+      );
     }
     if (!state.reduced && !state.paused) {
       for (const flame of this.flames)
         flame.mesh.scale.y = 0.15 + Math.sin(this.time * 5 + flame.phase) * 0.008;
       if (this.particles) this.particles.rotation.y = Math.sin(this.time * 0.025) * 0.02;
+      this.waterLines.forEach((line, index) => {
+        line.position.x += Math.sin(this.time * 0.6 + index) * dt * 0.025;
+        line.scale.x =
+          (1 + this.random(index) * 3) * (1 + Math.sin(this.time * 0.8 + index) * 0.08);
+      });
+      if (this.waterMap) this.waterMap.offset.y += dt * 0.008;
     }
     this.renderer.render(this.scene, this.camera);
   };
@@ -1228,6 +1903,9 @@ export class ConcordWorld {
     for (const g of gs) g.dispose();
     for (const m of ms) m.dispose();
     for (const t of this.textures) t.dispose();
+    // The next renderer may reuse this canvas during StrictMode or a chapter change.
+    // Reset pixel-unpack flags before its placeholder array textures are initialized.
+    this.renderer.resetState();
     this.renderer.dispose();
     // React StrictMode immediately replays effects on the same canvas in development.
     // Forcing asynchronous context loss here would poison that next renderer.

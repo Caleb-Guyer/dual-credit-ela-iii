@@ -1,6 +1,8 @@
 import { expect, test, type Page } from '@playwright/test';
 import { debates, evidence, questions, source } from '../../src/concord/data';
 import { freshSave, SAVE_KEY, type ConcordSave } from '../../src/concord/save';
+import { interactionDefs } from '../../src/concord/interactions';
+import { hotspots } from '../../src/concord/navigation';
 import type { ConcordWorld } from '../../src/concord/scene';
 
 declare global {
@@ -64,28 +66,158 @@ async function enter(page: Page) {
 
 /** Observe the real world through its development module, without production test globals. */
 async function observeWorld(page: Page) {
-  await page.evaluate(async () => {
-    const path = performance
-      .getEntriesByType('resource')
-      .find((entry) => entry.name.includes('/src/concord/scene.ts'))!.name;
-    const module = await import(/* @vite-ignore */ path);
-    const original = module.ConcordWorld.prototype.look;
-    module.ConcordWorld.prototype.look = function (...args: number[]) {
-      window.concordTest = this;
-      original.apply(this, args);
-    };
-  });
-  const canvas = page.locator('.cn-game-shell canvas');
-  const box = (await canvas.boundingBox())!;
-  await page.mouse.move(box.x + box.width * 0.6, box.y + box.height * 0.65);
-  await page.mouse.down();
-  await page.mouse.move(box.x + box.width * 0.6 + 1, box.y + box.height * 0.65);
-  await page.mouse.up();
-  await expect.poll(() => page.evaluate(() => !!window.concordTest)).toBe(true);
+  await page.evaluate(() => Reflect.deleteProperty(window, 'concordTest'));
+  await expect(async () => {
+    await page.evaluate(async () => {
+      // Include cached module versions if a developer's HMR update landed during a run.
+      const paths = [
+        ...new Set(
+          performance
+            .getEntriesByType('resource')
+            .filter((entry) => entry.name.includes('/src/concord/scene.ts'))
+            .map((entry) => entry.name),
+        ),
+      ];
+      for (const path of paths) {
+        const module = await import(/* @vite-ignore */ path);
+        const original = module.ConcordWorld.prototype.look;
+        module.ConcordWorld.prototype.look = function (...args: number[]) {
+          window.concordTest = this;
+          original.apply(this, args);
+        };
+      }
+    });
+    const canvas = page.locator('.cn-game-shell canvas');
+    const box = (await canvas.boundingBox())!;
+    await page.mouse.move(box.x + box.width * 0.6, box.y + box.height * 0.55);
+    await page.mouse.down();
+    await page.mouse.move(box.x + box.width * 0.6 + 3, box.y + box.height * 0.55, { steps: 2 });
+    await page.mouse.up();
+    expect(await page.evaluate(() => !!window.concordTest)).toBe(true);
+  }).toPass({ timeout: 10000 });
 }
 
 const saved = (page: Page) =>
   page.evaluate((key) => JSON.parse(localStorage.getItem(key)!) as ConcordSave, SAVE_KEY);
+
+async function placePlayer(page: Page, x: number, z: number, yaw = 0) {
+  await page.evaluate(
+    ({ x, z, yaw }) => {
+      const world = window.concordTest;
+      world.keys.clear();
+      world.camera.position.set(x, 1.68, z);
+      world.yaw = yaw;
+      world.pitch = -0.03;
+    },
+    { x, z, yaw },
+  );
+  // Let the real renderer synchronize its restored pose before keyboard input starts.
+  await page.evaluate(
+    () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
+  );
+}
+
+async function approachObject(page: Page, id: string, touch = false) {
+  const target = hotspots.find((point) => point.id === id)!;
+  if (id === 'c08') await placePlayer(page, 1.6, target.z, -Math.PI / 2);
+  else if (id === 'c09') await placePlayer(page, -1.15, target.z, Math.PI / 2);
+  else await placePlayer(page, target.x, target.z + 1.6);
+  await expect.poll(() => page.evaluate(() => window.concordTest.near?.id)).toBe(id);
+  if ((await saved(page)).collected.includes(id))
+    await expect(page.locator('.cn-inspect')).toContainText('Revisit');
+  if (touch) await page.locator('.cn-inspect').tap();
+  else await page.keyboard.press('e');
+  await expect(
+    page.getByRole('dialog', { name: interactionDefs[id].title, exact: true }),
+  ).toBeVisible();
+}
+
+/** Exercise the actual pointer/choice controls; completion alone does not collect a passage. */
+async function finishInteraction(page: Page, id: string) {
+  const def = interactionDefs[id];
+  const region = page.getByRole('dialog', { name: def.title, exact: true });
+  const card = evidence.find((item) => item.id === id)!;
+  const alreadyCollected = (await saved(page)).collected.includes(id);
+  for (let index = 0; index < def.steps.length; index++) {
+    const step = def.steps[index];
+    await expect(region.locator('.cn-interaction-prompt')).toHaveText(step.prompt);
+    if (!alreadyCollected) expect((await saved(page)).collected).not.toContain(id);
+    await expect(page.getByRole('dialog', { name: card.title, exact: true })).toHaveCount(0);
+    if (step.posture && step.posture !== 'stand') {
+      await expect
+        .poll(() => page.evaluate(() => window.concordTest.camera.position.y))
+        .toBeLessThan(step.posture === 'sit' ? 1.2 : 1.63);
+    }
+    if (id === 'c11' && index === 1)
+      await expect
+        .poll(() => page.evaluate(() => -Math.sin(window.concordTest.yaw)))
+        .toBeGreaterThan(0.8);
+    if (step.kind === 'choose') {
+      if (id === 'c04')
+        await page.screenshot({ path: 'docs/screenshots/concord-gameplay-collector.png' });
+      const coinPose = () =>
+        page.evaluate(() =>
+          window.concordTest.scene.getObjectByName('tax-coin')!.position.toArray(),
+        );
+      let offeredCoin: number[] | null = null;
+      const preview = step.choices?.find((choice) => choice.advance === false);
+      if (preview) {
+        const heldCoin = id === 'c04' ? await coinPose() : null;
+        await region.getByRole('button', { name: preview.label, exact: false }).click();
+        await expect(region.locator('.cn-interaction-response')).toHaveText(preview.response);
+        await expect(region.locator('.cn-interaction-prompt')).toHaveText(step.prompt);
+        if (!alreadyCollected) expect((await saved(page)).collected).not.toContain(id);
+        if (heldCoin) {
+          await expect
+            .poll(async () => {
+              const pose = await coinPose();
+              return Math.hypot(...pose.map((value, i) => value - heldCoin[i]));
+            })
+            .toBeGreaterThan(0.2);
+          offeredCoin = await coinPose();
+          await page.screenshot({ path: 'docs/screenshots/concord-gameplay-collector-offer.png' });
+        }
+      }
+      const choice = step.choices!.find((item) => item.advance !== false)!;
+      await region.getByRole('button', { name: choice.label, exact: false }).click();
+      await expect(region.locator('.cn-interaction-response')).toHaveText(choice.response);
+      if (offeredCoin) {
+        const offer = offeredCoin;
+        await expect
+          .poll(async () => {
+            const pose = await coinPose();
+            return Math.hypot(...pose.map((value, i) => value - offer[i]));
+          })
+          .toBeGreaterThan(0.2);
+      }
+    } else if (step.kind === 'hold') {
+      const action = region.getByRole('button', { name: step.actionLabel, exact: false });
+      const box = (await action.boundingBox())!;
+      await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+      await page.mouse.down();
+      const capture =
+        id === 'c03' ? 'press' : id === 'c08' ? 'window' : id === 'c11' ? 'river' : null;
+      if (capture) {
+        await expect
+          .poll(async () =>
+            Number(await region.getByRole('progressbar').getAttribute('aria-valuenow')),
+          )
+          .toBeGreaterThan(20);
+        await page.screenshot({ path: `docs/screenshots/concord-gameplay-${capture}.png` });
+      }
+      await expect(region).toContainText(def.steps[index + 1]?.prompt ?? def.completion, {
+        timeout: (step.duration ?? 1.2) * 1000 + 5000,
+      });
+      await page.mouse.up();
+    } else await region.getByRole('button', { name: step.actionLabel, exact: false }).click();
+  }
+  await expect(region).toContainText(def.completion);
+  if (!alreadyCollected) expect((await saved(page)).collected).not.toContain(id);
+  await region.getByRole('button', { name: 'Read Thoreau’s passage', exact: false }).click();
+  await expect(region).toHaveCount(0);
+  await expect(page.getByRole('dialog', { name: card.title, exact: true })).toBeVisible();
+  await expect.poll(async () => (await saved(page)).collected).toContain(id);
+}
 
 test('Concord explores real 3D, collects evidence, opens source context and resumes its save', async ({
   page,
@@ -109,6 +241,7 @@ test('Concord explores real 3D, collects evidence, opens source context and resu
   const end = await page.evaluate(() => window.concordTest.camera.position.toArray());
   expect(Math.hypot(end[0] - start[0], end[2] - start[2])).toBeGreaterThan(3);
   await page.keyboard.press('e');
+  await finishInteraction(page, 'c01');
   const card = evidence[0];
   await expect(page.getByRole('dialog', { name: card.title, exact: true })).toBeVisible();
   await expect(page.locator('.cn-quotation')).toContainText(card.quote);
@@ -120,6 +253,9 @@ test('Concord explores real 3D, collects evidence, opens source context and resu
   await expect(page.locator('dialog[open]')).toHaveCount(0);
   await expect(page.getByRole('dialog', { name: card.title, exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Keep exploring', exact: true }).click();
+  await expect
+    .poll(() => page.evaluate(() => Reflect.get(window.concordTest, 'returnView') === null))
+    .toBe(true);
   const beforeNotebook = await page.evaluate(() => ({
     position: window.concordTest.camera.position.toArray(),
     yaw: window.concordTest.yaw,
@@ -144,6 +280,161 @@ test('Concord explores real 3D, collects evidence, opens source context and resu
   await expect(page.getByRole('button', { name: 'Continue', exact: true })).toBeVisible();
   expect((await saved(page)).collected).toEqual(['c01']);
   expect(errors).toEqual([]);
+});
+
+test('walking accelerates, brakes, crosses the bridge to both banks and slides along its railing', async ({
+  page,
+}) => {
+  await setup(page);
+  await enter(page);
+  await observeWorld(page);
+  await placePlayer(page, 0, 12);
+  // Observe the integrated controller through the existing development-only world harness.
+  // No production test globals or synthetic physics calls are introduced.
+  const firstStep = page.evaluate(async () => {
+    const world = window.concordTest;
+    const start = world.camera.position.z;
+    return new Promise<number>((resolve) => {
+      function sample() {
+        if (world.camera.position.z !== start) resolve(Reflect.get(world, 'motion').speed);
+        else requestAnimationFrame(sample);
+      }
+      requestAnimationFrame(sample);
+    });
+  });
+  await page.keyboard.down('w');
+  const firstSpeed = await firstStep;
+  expect(firstSpeed).toBeGreaterThan(0);
+  expect(firstSpeed).toBeLessThan(3.1);
+  await expect
+    .poll(() => page.evaluate(() => Reflect.get(window.concordTest, 'motion').speed))
+    .toBeGreaterThan(3.1);
+  await page.keyboard.down('Shift');
+  await expect
+    .poll(() => page.evaluate(() => Reflect.get(window.concordTest, 'motion').speed))
+    .toBeGreaterThan(5);
+  await page.keyboard.up('w');
+  await page.keyboard.up('Shift');
+  const release = await page.evaluate(() => window.concordTest.camera.position.z);
+  await expect
+    .poll(() => page.evaluate(() => Reflect.get(window.concordTest, 'motion').speed))
+    .toBe(0);
+  const stop = await page.evaluate(() => window.concordTest.camera.position.z);
+  expect(release - stop).toBeLessThan(0.25);
+  await placePlayer(page, 20, 18);
+  await page.keyboard.down('Shift');
+  await page.keyboard.down('w');
+  await expect
+    .poll(() => page.evaluate(() => window.concordTest.camera.position.z))
+    .toBeLessThan(16.36);
+  await page.waitForTimeout(250);
+  expect(await page.evaluate(() => window.concordTest.camera.position.z)).toBeGreaterThanOrEqual(
+    16.3,
+  );
+  await page.keyboard.down('d');
+  await expect
+    .poll(() => page.evaluate(() => window.concordTest.camera.position.x))
+    .toBeGreaterThan(21);
+  expect(await page.evaluate(() => window.concordTest.camera.position.z)).toBeGreaterThanOrEqual(
+    16.3,
+  );
+  await page.keyboard.up('w');
+  await page.keyboard.up('d');
+  await page.keyboard.up('Shift');
+  // Start at the west approach, then traverse the entire deck using normal controls.
+  await placePlayer(page, 14, 18, -Math.PI / 2);
+  await page.keyboard.down('Shift');
+  await page.keyboard.down('w');
+  await expect
+    .poll(() => page.evaluate(() => window.concordTest.camera.position.x), { timeout: 15000 })
+    .toBeGreaterThan(36.3);
+  await page.keyboard.up('w');
+  await expect
+    .poll(() => page.evaluate(() => Reflect.get(window.concordTest, 'motion').speed))
+    .toBe(0);
+  const farBank = await page.evaluate(() => window.concordTest.camera.position.toArray());
+  expect(farBank[0]).toBeLessThanOrEqual(38);
+  expect(farBank[1]).toBeCloseTo(1.68, 2);
+  expect(farBank[2]).toBeCloseTo(18, 2);
+  // Walk backward along the same route, proving the far bank is an actual landing.
+  await page.keyboard.down('s');
+  await expect
+    .poll(() => page.evaluate(() => window.concordTest.camera.position.x), { timeout: 15000 })
+    .toBeLessThan(14.1);
+  await page.keyboard.up('s');
+  await page.keyboard.up('Shift');
+  await expect
+    .poll(() => page.evaluate(() => Reflect.get(window.concordTest, 'motion').speed))
+    .toBe(0);
+  const westBank = await page.evaluate(() => window.concordTest.camera.position.toArray());
+  expect(westBank[1]).toBeCloseTo(1.68, 2);
+  expect(westBank[2]).toBeCloseTo(18, 2);
+});
+
+for (const target of hotspots) {
+  test(`${target.id}: ${interactionDefs[target.id].title} requires its physical actions before the passage`, async ({
+    page,
+  }) => {
+    const errors: string[] = [];
+    page.on('pageerror', (error) => errors.push(error.message));
+    await setup(page, { act: target.act });
+    await enter(page);
+    await observeWorld(page);
+    await approachObject(page, target.id);
+    if (target.id === 'c01') {
+      const region = page.getByRole('dialog', { name: interactionDefs.c01.title, exact: true });
+      const position = await page.evaluate(() => window.concordTest.camera.position.toArray());
+      await page.keyboard.down('w');
+      await page.waitForTimeout(300);
+      await page.keyboard.up('w');
+      const locked = await page.evaluate(() => window.concordTest.camera.position.toArray());
+      expect(Math.hypot(locked[0] - position[0], locked[2] - position[2])).toBeLessThan(0.001);
+      const action = region.getByRole('button', { name: 'Pull the pin', exact: false });
+      const box = (await action.boundingBox())!;
+      await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+      await page.mouse.down();
+      await expect(region.getByRole('progressbar')).toHaveAttribute(
+        'aria-valuenow',
+        /^(?:[1-9]|[1-8]\d)$/,
+      );
+      await page.mouse.up();
+      await expect(region.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '0');
+      await expect(region.locator('.cn-interaction-prompt')).toHaveText(
+        interactionDefs.c01.steps[0].prompt,
+      );
+      await region.getByRole('button', { name: 'Step away', exact: true }).click();
+      await expect(region).toHaveCount(0);
+      expect((await saved(page)).collected).not.toContain('c01');
+      await page.keyboard.press('e');
+      await expect(region.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '0');
+    }
+    await finishInteraction(page, target.id);
+    await expect(page.locator('.cn-quotation')).toContainText(
+      evidence.find((item) => item.id === target.id)!.quote,
+    );
+    await page.getByRole('button', { name: 'Keep exploring', exact: true }).click();
+    await expect(page.locator('.cn-interaction')).toHaveCount(0);
+    expect(errors).toEqual([]);
+  });
+}
+
+test('a returning reader can replay a collected scene without changing reading history', async ({
+  page,
+}) => {
+  await setup(page, {
+    collected: evidence.map((card) => card.id),
+    mastery: { q01: { seen: 3, correct: 2, streak: 1 } },
+    missed: ['q02'],
+    exams: [{ score: 23, total: 24, date: '2026-10-24T12:00:00.000Z' }],
+  });
+  await enter(page);
+  await observeWorld(page);
+  const before = await saved(page);
+  await approachObject(page, 'c01');
+  await finishInteraction(page, 'c01');
+  await page.getByRole('button', { name: 'Keep exploring', exact: true }).click();
+  expect(await saved(page)).toEqual(before);
+  expect(new Set((await saved(page)).collected).size).toBe(12);
 });
 
 test('all four conversations require a reply followed by supporting evidence', async ({ page }) => {
@@ -413,6 +704,9 @@ test('phone layouts fit and touch movement stops when released', async ({ browse
   const stopped = await page.evaluate(() => window.concordTest.camera.position.toArray());
   expect(Math.hypot(stopped[0] - moved[0], stopped[2] - moved[2])).toBeLessThan(0.2);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await approachObject(page, 'c01', true);
+  await page.screenshot({ path: 'docs/screenshots/concord-phone-encounter.png' });
+  await page.getByRole('button', { name: 'Step away', exact: true }).tap();
   await page.getByRole('button', { name: 'Pause game', exact: true }).click();
   await expect(page.getByRole('dialog', { name: 'Paused', exact: true })).toBeVisible();
   await context.close();

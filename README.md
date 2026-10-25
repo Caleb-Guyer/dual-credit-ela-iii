@@ -8,9 +8,11 @@ A browser game collection for Dual Credit English Language Arts III. The launch 
 
 ## One Night in Concord
 
-![One Night in Concord](docs/screenshots/concord-title.png)
+![Pulling the printing press in Concord](docs/screenshots/concord-gameplay-press.png)
 
-A first-person 3D exploration and argument game based on Thoreau’s complete 1849 essay. An illustrated title page leads into four scenes: a lantern-lit village, a tax-office street, a county jail cell, and the road home at dawn. The interface keeps the world clear; directions appear when requested with H. Discover twelve passages, then answer each conversation one step at a time: choose your reply, then the passage that supports it. Incorrect answers receive explanations and can be revised without losing story progress.
+A first-person 3D exploration and argument game based on Thoreau’s complete 1849 essay. Walk through a lantern-lit village, a tax-office street, a county jail cell, and the road home at dawn. Articulated townspeople turn toward you, gesture, and return to their work. Movement eases into a walk, slides along obstacles, and follows the boards of the bridge; reduced motion removes the walking sway.
+
+Twelve encounters make the objects part of play: pull a printing-press lever, turn a ledger page, draw a jail latch, write with a quill, listen at a barred window, and sit by the river. Each takes a few short actions and leaves time to read its consequence before opening the related passage. The poll-tax encounter follows Thoreau’s refusal; a payment preview explains the difference without changing his historical decision. Conversations then ask for a reply and the passage that supports it. Incorrect answers receive explanations and can be revised without losing story progress.
 
 The study desk is available from the title or during play:
 
@@ -18,9 +20,20 @@ The study desk is available from the title or during play:
 - Adaptive ten-question practice, missed-question review, selected-topic review, and a balanced **24-question rehearsal** that reveals answers after completion.
 - A reason for **every answer option**, supporting passages, complete answer reports, and topic mastery tracked separately from campaign completion.
 - The full **51-paragraph/verse-block essay**, searchable with paragraph jumps, plus an evidence journal. Paragraph numbers are internal references rather than classroom page numbers.
-- Keyboard and touch controls, optional original procedural ambience, reduced motion, separate device-local saving, and a playable fallback if WebGL is unavailable.
+- Keyboard and touch controls, original footsteps and object sounds, optional night ambience, reduced motion, separate device-local saving, and a playable fallback if WebGL is unavailable.
 
-Move with WASD or arrows, drag to look, hold Shift to move faster, and press E to inspect nearby evidence. Q/R turn the view; PageUp/PageDown adjust vertical look. H shows or hides directions; J opens the notebook. Closing the notebook returns you to the same position and view. Escape pauses. Practice uses keys 1–4 and Enter. Quizzes have no time limit and do not require campaign completion.
+| Action                 | Controls                                                                                                                   |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| Walk                   | WASD or arrows; hold Shift to move faster. Touch uses the direction buttons.                                               |
+| Look                   | Drag the scene, or select Free look for mouse movement. Q/R turn; PageUp/PageDown look up/down. Escape releases Free look. |
+| Start an encounter     | E near an object, or select its on-screen prompt.                                                                          |
+| Handle an object       | Follow the action button: press E, hold E for the short gesture, or use the button. Releasing a hold lets you try again.   |
+| Choose a reply         | 1–2 or select a reply. Read Thoreau’s passage when the encounter is complete.                                              |
+| Directions and reading | H shows directions; J opens the notebook. Closing it restores your position and view.                                      |
+| Step away or pause     | Escape leaves an encounter; otherwise it pauses. The Pause button is also available.                                       |
+| Reading practice       | 1–4 select an answer; Enter continues. Quizzes have no time limit or campaign requirement.                                 |
+
+Options save **World sounds** and **Night ambience** separately. Footsteps change between road, wood, and stone; paper, the press, coins, the latch, and the quill have their own sounds. Ambience adds quiet wind and distant calls. Everything is synthesized locally with Web Audio and works without downloads or a sound service. All actions remain readable with sound off.
 
 Dialogue, encounter staging, and scenery are original adaptations; evidence quotations and factual answers refer to the essay. The game evaluates understanding of Thoreau’s position, not personal political agreement. Coverage uses the full essay; match your teacher’s assigned excerpt and notes when preparing for a classroom quiz. [Source and adaptation outline](docs/concord-source-outline.md).
 

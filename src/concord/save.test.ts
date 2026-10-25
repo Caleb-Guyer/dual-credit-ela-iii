@@ -16,6 +16,22 @@ describe('Concord device-local progress', () => {
     expect(parseSave(JSON.stringify(save))).toEqual(save);
     expect(save.debates).toEqual([]);
   });
+  it('adds world sounds to older saves without changing the saved ambience preference', () => {
+    const legacy = { ...freshSave(), music: true } as Partial<ReturnType<typeof freshSave>>;
+    delete legacy.sound;
+    const migrated = parseSave(JSON.stringify(legacy));
+    expect(migrated.sound).toBe(true);
+    expect(migrated.music).toBe(true);
+  });
+  it('keeps world sounds, ambience, and reduced motion as independent saved preferences', () => {
+    const save = { ...freshSave(), sound: false, music: true, reduced: true };
+    expect(parseSave(JSON.stringify(save))).toEqual(save);
+    expect(parseSave(JSON.stringify({ ...save, sound: true, music: false }))).toMatchObject({
+      sound: true,
+      music: false,
+      reduced: true,
+    });
+  });
   it('sanitizes impossible progress and rejects completion without all debates', () => {
     const parsed = parseSave(
       JSON.stringify({
