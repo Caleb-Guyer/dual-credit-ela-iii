@@ -8,11 +8,13 @@ A browser game collection for Dual Credit English Language Arts III. The launch 
 
 ## One Night in Concord
 
-![Pulling the printing press in Concord](docs/screenshots/concord-gameplay-press.png)
+![A conversation on Concord’s common](docs/screenshots/concord-conversation.png)
 
 A first-person 3D exploration and argument game based on Thoreau’s complete 1849 essay. Walk through a lantern-lit village, a tax-office street, a county jail cell, and the road home at dawn. Articulated townspeople turn toward you, gesture, and return to their work. Movement eases into a walk, slides along obstacles, and follows the boards of the bridge; reduced motion removes the walking sway.
 
-Twelve encounters make the objects part of play: pull a printing-press lever, turn a ledger page, draw a jail latch, write with a quill, listen at a barred window, and sit by the river. Each takes a few short actions and leaves time to read its consequence before opening the related passage. The poll-tax encounter follows Thoreau’s refusal; a payment preview explains the difference without changing his historical decision. Conversations then ask for a reply and the passage that supports it. Incorrect answers receive explanations and can be revised without losing story progress.
+Twelve encounters make the objects part of play: pull a printing-press lever, turn a ledger page, draw a jail latch, write with a quill, listen at a barred window, and sit by the river. Each takes a few short actions and leaves time to read its consequence before opening the related passage. The poll-tax encounter follows Thoreau’s refusal; a payment preview explains the difference without changing his historical decision.
+
+Debates happen with the townspeople in the 3D scene. Find the scene’s three passages, approach its character, and begin talking. Their words appear beside them while they look at you, speak, listen, and react. Choose a reply, then leaf through supporting quotations in a small notebook. A mistaken argument gets a character’s response and an optional reading explanation. You can step away and return to the same exchange; the conversation ends with an in-world farewell rather than a quiz-results screen.
 
 The study desk is available from the title or during play:
 
@@ -27,8 +29,9 @@ The study desk is available from the title or during play:
 | Walk                   | WASD or arrows; hold Shift to move faster. Touch uses the direction buttons.                                               |
 | Look                   | Drag the scene, or select Free look for mouse movement. Q/R turn; PageUp/PageDown look up/down. Escape releases Free look. |
 | Start an encounter     | E near an object, or select its on-screen prompt.                                                                          |
+| Start a debate         | Find the scene’s three passages, approach its character, and press E to talk.                                              |
 | Handle an object       | Follow the action button: press E, hold E for the short gesture, or use the button. Releasing a hold lets you try again.   |
-| Choose a reply         | 1–2 or select a reply. Read Thoreau’s passage when the encounter is complete.                                              |
+| Choose a reply         | Select a reply or use its number key. During a debate, turn notebook pages and use the quotation that supports your reply. |
 | Directions and reading | H shows directions; J opens the notebook. Closing it restores your position and view.                                      |
 | Step away or pause     | Escape leaves an encounter; otherwise it pauses. The Pause button is also available.                                       |
 | Reading practice       | 1–4 select an answer; Enter continues. Quizzes have no time limit or campaign requirement.                                 |

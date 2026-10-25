@@ -2,6 +2,14 @@ import * as T from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 export type CharacterRole = 'neighbor' | 'printer' | 'collector' | 'merchant' | 'jailer' | 'walker';
+export type ConversationPhase =
+  'speaking' | 'listening' | 'considering' | 'agree' | 'disagree' | 'farewell';
+export type CharacterConversation = {
+  phase: ConversationPhase;
+  beat: number;
+  speaking: boolean;
+  elapsed: number;
+};
 type Material = (color: string, cloth?: boolean) => T.MeshStandardMaterial;
 type CharacterOptions = {
   name: string;
@@ -76,10 +84,12 @@ export class Townsperson {
   readonly leftLeg = new T.Group();
   readonly rightLeg = new T.Group();
   private eyes: T.Mesh[] = [];
+  private mouth!: T.Mesh;
   private baseYaw: number;
   private headYaw = 0;
   private attention = 0;
   private walkTime = 0;
+  private conversationWeight = 0;
 
   constructor(
     readonly options: CharacterOptions,
@@ -185,7 +195,8 @@ export class Townsperson {
       brow.rotation.z = side * -0.07;
     }
     oval(this.head, skin, 0, 0.009, 0.143, 0.025, 0.046, 0.037);
-    block(this.head, '#785646', 0, -0.066, 0.133, 0.045, 0.008, 0.009);
+    this.mouth = oval(this.head, '#684537', 0, -0.066, 0.139, 0.024, 0.004, 0.009);
+    this.mouth.name = 'Conversation mouth';
 
     if (bonnet) {
       oval(this.head, '#b6ad8e', 0, 0.11, -0.085, 0.19, 0.183, 0.14, true);
@@ -228,7 +239,7 @@ export class Townsperson {
         Math.PI / 2;
       block(this.body, '#b6a16c', 0.2, 0.82, 0.13, 0.018, 0.07, 0.02);
     }
-    const animated = new Set(this.eyes);
+    const animated = new Set([...this.eyes, this.mouth]);
     for (const pivot of [
       this.body,
       this.head,
@@ -249,18 +260,34 @@ export class Townsperson {
     reduced: boolean,
     action?: string,
     progress = 0,
+    conversation?: CharacterConversation,
   ) {
     const { role, seed } = this.options;
     const dx = player.x - this.group.position.x;
     const dz = player.z - this.group.position.z;
     const distance = Math.hypot(dx, dz);
     const reacting =
+      !!conversation ||
       (action === 'c02' && role === 'neighbor') ||
       (action === 'c03' && role === 'printer') ||
       (action === 'c04' && role === 'collector') ||
       (action === 'c05' && role === 'merchant') ||
       (action === 'c06' && role === 'jailer') ||
       (action === 'c10' && role === 'walker');
+    this.conversationWeight = T.MathUtils.damp(
+      this.conversationWeight,
+      conversation ? 1 : 0,
+      5,
+      dt,
+    );
+    if (conversation || this.conversationWeight > 0.01) {
+      const facing = conversation ? Math.atan2(dx, dz) : this.baseYaw;
+      const turn = Math.atan2(
+        Math.sin(facing - this.group.rotation.y),
+        Math.cos(facing - this.group.rotation.y),
+      );
+      this.group.rotation.y += turn * (1 - Math.exp(-dt * 4.5));
+    }
     const attention = distance < 4.7 || reacting ? 1 : 0;
     this.attention = T.MathUtils.damp(this.attention, attention, 3.8, dt);
     const angle = Math.atan2(dx, dz) - this.group.rotation.y;
@@ -277,6 +304,17 @@ export class Townsperson {
     const blinkPhase = (time + seed * 1.73) % (4.1 + (seed % 3) * 0.67);
     const blink = reduced ? 1 : blinkPhase < 0.14 ? Math.abs(blinkPhase - 0.07) / 0.07 : 1;
     this.eyes.forEach((eye) => (eye.scale.y = 0.012 * Math.max(0.06, blink)));
+    const speaking = !!conversation?.speaking;
+    const syllable = speaking
+      ? reduced
+        ? 0.28
+        : Math.max(0, Math.sin(time * 16 + seed)) * (0.5 + Math.sin(time * 4.3) * 0.18)
+      : 0;
+    this.mouth.scale.y = 0.004 + syllable * 0.025;
+    this.mouth.scale.x = 0.024 + syllable * 0.004;
+    this.head.position.y = 1.61 + (speaking && !reduced ? Math.sin(time * 3.1 + seed) * 0.003 : 0);
+    this.group.userData.conversationPhase = conversation?.phase ?? null;
+    this.group.userData.speaking = speaking;
 
     this.leftArm.rotation.set(0.08, 0, 0.12);
     this.rightArm.rotation.set(-0.06, 0, -0.1);
@@ -322,9 +360,55 @@ export class Townsperson {
       this.leftArm.rotation.x = -stride * 0.1;
       this.rightArm.rotation.x = stride * 0.1;
     }
+    if (conversation) {
+      const phase = conversation.phase;
+      const beat = conversation.beat;
+      const pulse = reduced ? 0 : Math.sin(time * 2.15 + seed + beat) * 0.09;
+      const response = Math.exp(-conversation.elapsed * 1.1);
+      // Speaking hands offer the argument; while listening they settle below the waistcoat.
+      this.leftArm.rotation.set(-0.23, 0, 0.13);
+      this.rightArm.rotation.set(-0.28, 0, -0.13);
+      this.leftForearm.rotation.x = -0.5;
+      this.rightForearm.rotation.x = -0.6;
+      if (speaking) {
+        const leading = beat % 2 ? this.leftArm : this.rightArm;
+        const forearm = beat % 2 ? this.leftForearm : this.rightForearm;
+        leading.rotation.x = -0.62 + pulse;
+        leading.rotation.z = beat % 2 ? 0.28 : -0.28;
+        forearm.rotation.x = -0.95 - pulse;
+        this.head.rotation.x -= reduced ? 0.02 : Math.sin(time * 2.7 + beat) * 0.027;
+      }
+      if (phase === 'considering') {
+        this.rightArm.rotation.x = -0.78;
+        this.rightForearm.rotation.x = -1.45;
+        this.head.rotation.x += 0.065;
+      } else if (phase === 'agree') {
+        this.head.rotation.x += reduced
+          ? 0.03
+          : Math.sin(conversation.elapsed * 6) * 0.075 * response;
+        this.rightArm.rotation.z = -0.25;
+      } else if (phase === 'disagree') {
+        this.head.rotation.y += reduced ? 0 : Math.sin(conversation.elapsed * 5.4) * 0.1 * response;
+        this.leftArm.rotation.z = 0.27;
+        this.leftForearm.rotation.x = -0.85;
+      } else if (phase === 'farewell') {
+        this.rightArm.rotation.x = -0.8;
+        this.rightArm.rotation.z = -0.28;
+        this.rightForearm.rotation.x = -1.15;
+        this.rightForearm.rotation.z = reduced
+          ? 0.1
+          : Math.sin(conversation.elapsed * 4.2) * 0.12 * response;
+      }
+    }
     // Attention comes from a small upper-body turn, never an abrupt whole-person spin.
     this.body.rotation.y = this.headYaw * 0.16;
-    if (role === 'walker' && !reduced && !reacting && distance > 3.5) {
+    if (
+      role === 'walker' &&
+      !reduced &&
+      !reacting &&
+      this.conversationWeight < 0.05 &&
+      distance > 3.5
+    ) {
       this.walkTime += dt;
       const offset = Math.sin(this.walkTime * 0.32) * 1.3;
       this.group.position.z = this.options.z + offset;

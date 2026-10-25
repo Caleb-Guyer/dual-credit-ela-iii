@@ -629,166 +629,6 @@
   inset: 0;
   background: #eae2ce;
 }
-.cn-portrait {
-  width: 86px;
-  height: 112px;
-  flex-shrink: 0;
-  color: #66745c;
-}
-.cn-conversation-heading {
-  display: flex;
-  align-items: center;
-  gap: 25px;
-  border-bottom: 1px solid #a2aa8c70;
-  padding: 2px 0 25px;
-}
-.cn-conversation-heading .cn-margin-note {
-  font-size: 17px;
-  margin-bottom: 10px;
-}
-.cn-conversation-heading blockquote {
-  font-size: 25px;
-  line-height: 1.45;
-  color: #344733;
-}
-.cn-conversation-step {
-  color: #7c816c;
-  font-size: 15px;
-  font-style: italic;
-  margin: 25px 0 18px;
-}
-.cn-conversation-step span {
-  margin: 0 7px;
-}
-.cn-claim-grid {
-  display: flex;
-  flex-direction: column;
-}
-.cn-claim {
-  display: flex;
-  align-items: flex-start;
-  gap: 15px;
-  background: none;
-  border: 0;
-  border-bottom: 1px solid #a2aa8c70;
-  padding: 18px 12px;
-  font-size: 19px;
-  line-height: 1.6;
-  text-align: left;
-  color: #3c4d36 !important;
-}
-.cn-claim > span {
-  font-style: italic;
-  color: #8c9478;
-}
-.cn-claim:hover {
-  background: #667c4e0d;
-}
-.cn-claim.selected {
-  background: #81986716;
-  box-shadow: inset 3px 0 #647e4d;
-}
-.cn-conversation-actions {
-  display: flex;
-  justify-content: flex-end;
-  align-items: center;
-  gap: 22px;
-  margin-top: 28px;
-}
-.cn-your-reply {
-  color: #6f7c60;
-  font-size: 15px;
-  margin: 0 0 20px;
-}
-.cn-your-reply summary {
-  cursor: pointer;
-}
-.cn-your-reply p {
-  padding: 15px 0;
-  font-size: 17px;
-}
-.cn-evidence-hand {
-  display: flex;
-  flex-direction: column;
-}
-.cn-evidence-card {
-  display: grid;
-  grid-template-columns: 22px 1fr;
-  gap: 7px 14px;
-  text-align: left;
-  border: 0;
-  border-bottom: 1px solid #a2aa8c70;
-  background: none;
-  color: #354832 !important;
-  padding: 15px 12px;
-}
-.cn-evidence-card:hover {
-  background: #667c4e0d;
-}
-.cn-evidence-card.selected {
-  background: #81986716;
-  box-shadow: inset 3px 0 #647e4d;
-}
-.cn-evidence-card:disabled {
-  opacity: 1;
-}
-.cn-passage-number {
-  font-size: 17px;
-  font-style: italic;
-  color: #8c9478;
-  grid-row: 1/3;
-}
-.cn-evidence-card q {
-  font-size: 19px;
-  line-height: 1.55;
-}
-.cn-passage-reference {
-  font-size: 13px;
-  font-style: italic;
-  color: #7c866c;
-}
-.cn-debate-hint {
-  font-size: 14px;
-  color: #7a806a;
-  margin-top: 20px;
-}
-.cn-debate-hint summary {
-  cursor: pointer;
-  width: max-content;
-}
-.cn-debate-hint p {
-  font-size: 16px;
-  margin-top: 13px;
-}
-.cn-feedback {
-  padding: 22px 0 2px;
-  margin-top: 20px;
-  border-top: 1px solid #8e9a7c;
-  color: #5d6f51;
-  font-size: 18px;
-}
-.cn-feedback.incorrect {
-  color: #89603f;
-}
-.cn-feedback > .cn-text-button {
-  font-size: 14px;
-}
-.cn-debate-victory {
-  text-align: center;
-  padding: 15px 0;
-}
-.cn-debate-victory .cn-portrait {
-  height: 115px;
-  width: 93px;
-  margin-bottom: 15px;
-}
-.cn-debate-victory h2 {
-  margin-bottom: 20px;
-}
-.cn-debate-victory > p:not(.cn-margin-note) {
-  font-size: 18px;
-  margin: 20px 0 30px;
-}
 @keyframes concord-caption {
   0%,
   55% {
@@ -1280,4 +1120,354 @@
     sans-serif;
   color: #72745d;
   margin: -6px 0 13px;
+}
+/* Spoken turns sit beside their speaker; reply lines leave the village in view. */
+.cn-conversation {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  pointer-events: none;
+  outline: none;
+  color: #f3edda;
+  text-shadow: 0 1px 3px #17251e;
+}
+.cn-conversation-muted > .cn-speech,
+.cn-conversation-muted > .cn-talk-controls {
+  visibility: hidden;
+}
+.cn-speech {
+  width: min(410px, 32vw);
+  position: absolute;
+  padding: 16px 19px;
+  background: #193126e8;
+  border-left: 2px solid #c9b98e;
+  pointer-events: auto;
+  box-shadow: 0 3px 17px #071c1922;
+}
+.cn-speech-anchored {
+  transform: translate(42px, -25%);
+}
+.cn-speech-fallback {
+  left: 50%;
+  top: 20%;
+  transform: translateX(-50%);
+}
+.cn-speaker-name {
+  color: #d4c59f;
+  font-size: 14px;
+  font-style: italic;
+}
+.cn-speech p {
+  font-size: 21px;
+  line-height: 1.48;
+  margin: 8px 0 0;
+}
+.cn-speech-accessible {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+.cn-speech-skip {
+  background: none;
+  border: 0;
+  color: #c6c9ae !important;
+  font-size: 12px !important;
+  padding: 10px 0 0;
+}
+.cn-speech-skip kbd {
+  margin-left: 7px;
+  font-size: 9px;
+}
+.cn-talk-controls {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: 25px;
+  width: min(760px, calc(100% - 80px));
+  pointer-events: auto;
+}
+.cn-talk-topline {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 20px;
+  font-size: 13px;
+  color: #dfdcc3;
+  margin-bottom: 11px;
+}
+.cn-talk-topline button {
+  border: 0;
+  background: #173226b8;
+  color: #eee7d2 !important;
+  padding: 8px 12px;
+  font-size: 12px;
+}
+.cn-talk-topline kbd {
+  margin-left: 8px;
+  font-size: 9px;
+}
+.cn-replies {
+  display: grid;
+  gap: 5px;
+}
+.cn-reply {
+  display: flex;
+  gap: 14px;
+  align-items: baseline;
+  text-align: left;
+  width: 100%;
+  min-height: 47px;
+  padding: 12px 17px;
+  background: #142d23eb;
+  border: 1px solid #d0d2aa42;
+  color: #f0ead5 !important;
+  font:
+    18px/1.45 Georgia,
+    serif !important;
+}
+.cn-reply:hover,
+.cn-reply:focus-visible {
+  background: #3d5140f2;
+  border-color: #c1bf95;
+}
+.cn-reply kbd {
+  font-size: 10px;
+  color: #c0c8a3;
+}
+.cn-pocket-notebook {
+  background: #eee6d2f7;
+  color: #31432f;
+  text-shadow: none;
+  border: 1px solid #c3b89a;
+  padding: 17px 23px 12px;
+  width: min(560px, 100%);
+  margin: 0 auto;
+  box-shadow: 0 4px 20px #10271e33;
+}
+.cn-pocket-heading {
+  display: flex;
+  justify-content: space-between;
+  font:
+    italic 13px Georgia,
+    serif;
+  color: #717555;
+  margin-bottom: 10px;
+}
+.cn-pocket-heading small {
+  font-style: normal;
+  font-size: 12px;
+}
+.cn-conversation-quote {
+  font:
+    20px/1.45 Georgia,
+    serif;
+  max-height: 21svh;
+  overflow-y: auto;
+}
+.cn-quote-reference {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 12px 0;
+  font-size: 12px;
+  color: #6b7157;
+}
+.cn-quote-reference button,
+.cn-rethink,
+.cn-reading-note button {
+  background: none;
+  border: 0;
+  padding: 0;
+  font-size: 12px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.cn-pocket-actions {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+.cn-pocket-actions button {
+  min-height: 42px;
+  border: 1px solid #a6af8b;
+  background: transparent;
+  color: #3a4c32 !important;
+  padding: 8px 14px;
+  font-size: 18px;
+}
+.cn-pocket-actions .cn-use-passage {
+  flex: 1;
+  background: #d8dec3;
+  font-size: 16px;
+}
+.cn-use-passage kbd {
+  margin-left: 9px;
+  font-size: 9px;
+}
+.cn-pocket-notebook > .cn-rethink {
+  display: block;
+  margin: 12px auto 0;
+  color: #677251;
+}
+.cn-conversation-response,
+.cn-conversation-farewell {
+  width: min(600px, 100%);
+  margin: 0 auto;
+}
+.cn-talk-next {
+  display: block;
+  margin: 0 auto;
+  min-width: 170px;
+  padding: 12px 20px;
+  background: #dce2c9f5;
+  color: #2d432f !important;
+  border: 1px solid #a8b58e;
+  font-size: 17px;
+  text-shadow: none;
+}
+.cn-talk-next kbd {
+  margin-left: 12px;
+  font-size: 9px;
+}
+.cn-reading-note {
+  margin-top: 13px;
+  background: #193126e8;
+  padding: 12px 16px;
+  font-size: 14px;
+}
+.cn-reading-note summary {
+  cursor: pointer;
+  color: #d7dac0;
+  font-size: 13px;
+}
+.cn-reading-note p {
+  font-size: 16px;
+  margin: 12px 0;
+}
+.cn-conversation-farewell p {
+  text-align: center;
+  padding: 15px 20px;
+  background: #183025eb;
+  font-size: 16px;
+}
+.cn-conversation-farewell > .cn-rethink {
+  display: block;
+  margin: 13px auto 0;
+  color: #e2e1c9;
+}
+@media (max-width: 900px) {
+  .cn-speech {
+    width: min(355px, 39vw);
+  }
+  .cn-speech-anchored {
+    transform: translate(24px, -18%);
+  }
+  .cn-speech p {
+    font-size: 18px;
+  }
+  .cn-talk-controls {
+    width: calc(100% - 40px);
+  }
+  .cn-reply {
+    font-size: 17px !important;
+  }
+}
+@media (max-width: 600px) {
+  .cn-speech {
+    left: 15px !important;
+    top: 78px !important;
+    width: calc(100% - 30px);
+    transform: none;
+    padding: 12px 15px;
+  }
+  .cn-speech p {
+    font-size: 17px;
+    line-height: 1.42;
+  }
+  .cn-speaker-name {
+    font-size: 12px;
+  }
+  .cn-talk-controls {
+    width: calc(100% - 26px);
+    bottom: 15px;
+    max-height: 34svh;
+    overflow-y: auto;
+  }
+  .cn-talk-topline {
+    font-size: 11px;
+    margin-bottom: 8px;
+  }
+  .cn-talk-topline button {
+    font-size: 11px;
+    white-space: nowrap;
+  }
+  .cn-talk-topline kbd {
+    display: none;
+  }
+  .cn-reply {
+    font-size: 15px !important;
+    padding: 10px 13px;
+    gap: 11px;
+    min-height: 43px;
+  }
+  .cn-pocket-notebook {
+    padding: 13px 17px 11px;
+  }
+  .cn-conversation-quote {
+    font-size: 17px;
+    max-height: 13svh;
+  }
+  .cn-conversation-farewell p {
+    font-size: 14px;
+    padding: 12px;
+  }
+  .cn-quote-reference {
+    font-size: 11px;
+    gap: 7px;
+  }
+}
+@media (max-height: 600px) and (min-width: 601px) {
+  .cn-talk-controls {
+    bottom: 15px;
+    width: min(630px, 68%);
+    max-height: 42svh;
+    overflow-y: auto;
+  }
+  .cn-speech {
+    width: 310px;
+    top: 80px !important;
+    padding: 12px 15px;
+  }
+  .cn-speech p {
+    font-size: 17px;
+  }
+  .cn-reply {
+    font-size: 15px !important;
+    padding: 8px 12px;
+    min-height: 37px;
+  }
+  .cn-pocket-notebook {
+    padding: 10px 16px;
+  }
+  .cn-conversation-quote {
+    font-size: 17px;
+    max-height: 12svh;
+  }
+}
+.cn-game-shell:has(.cn-conversation) .cn-chapter-caption {
+  display: none;
+}
+.cn-game-shell:has(.cn-inspect) .cn-ready-action {
+  bottom: 146px;
+}
+@media (max-width: 700px) {
+  .cn-game-shell:has(.cn-inspect) .cn-ready-action {
+    bottom: 210px;
+  }
 }

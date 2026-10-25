@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { ConcordWorld, hotspots, type Hotspot } from './scene';
+import { ConcordWorld, hotspots, type Hotspot, type ConversationPose } from './scene';
+import { conversationActors } from './conversation';
 import { clueBearing, nearestClue, spawns } from './navigation';
 import Frontispiece from './Frontispiece';
 import {
@@ -25,6 +26,17 @@ export type WorldProps = {
   onPosition?: (x: number, z: number, yaw: number, pitch?: number) => void;
   initialPose?: { x: number; z: number; yaw: number; pitch?: number };
   preview?: boolean;
+  talkAvailable?: boolean;
+  talkResuming?: boolean;
+  onTalk?: () => void;
+  onStepAway?: () => void;
+  conversation?: ConversationPose | null;
+  onConversationAnchor?: (anchor: {
+    x: number;
+    y: number;
+    visible: boolean;
+    clearance?: number;
+  }) => void;
 };
 
 export default function World(props: WorldProps) {
@@ -41,6 +53,24 @@ export default function World(props: WorldProps) {
   const interactionRef = useRef<InteractionState | null>(null);
   const actionPanel = useRef<HTMLElement>(null);
   const [freeLook, setFreeLook] = useState(false);
+  const wasTalking = useRef(false);
+  function withinTalkingDistance() {
+    const current = propsRef.current;
+    if (!current.talkAvailable || current.paused || interactionRef.current || current.conversation)
+      return false;
+    const actor = conversationActors[current.act];
+    const target = actor.id === 'jailer' ? actor.approach : actor;
+    const point = worldRef.current?.camera.position;
+    return !!point && Math.hypot(point.x - target.x, point.z - target.z) < 3.2;
+  }
+  function beginTalking() {
+    if (!withinTalkingDistance() && !error) return;
+    if (document.pointerLockElement) void document.exitPointerLock();
+    worldRef.current?.keys.clear();
+    drag.current = null;
+    setDirections(false);
+    propsRef.current.onTalk?.();
+  }
   function updateInteraction(next: InteractionState | null) {
     interactionRef.current = next;
     setInteraction(next);
@@ -102,7 +132,7 @@ export default function World(props: WorldProps) {
         !!props.preview,
         () => ({
           ...propsRef.current,
-          movementLocked: !!interactionRef.current,
+          movementLocked: !!interactionRef.current || !!propsRef.current.conversation,
           posture: interactionRef.current
             ? (interactionDefs[interactionRef.current.id].steps[interactionRef.current.step]
                 .posture ?? 'stand')
@@ -133,6 +163,7 @@ export default function World(props: WorldProps) {
       if (
         propsRef.current.paused ||
         propsRef.current.preview ||
+        document.querySelector('dialog[open]') ||
         e.ctrlKey ||
         e.metaKey ||
         e.altKey ||
@@ -140,6 +171,17 @@ export default function World(props: WorldProps) {
         (e.target as HTMLElement)?.isContentEditable
       )
         return;
+      if (propsRef.current.conversation) {
+        if (
+          ['KeyW', 'KeyA', 'KeyS', 'KeyD'].includes(e.code) &&
+          !(e.target as HTMLElement).closest('button,summary,a,details')
+        ) {
+          e.preventDefault();
+          propsRef.current.onStepAway?.();
+          worldRef.current?.keys.add(e.code);
+        }
+        return;
+      }
       const active = interactionRef.current;
       if (active) {
         if (e.code === 'Tab') {
@@ -208,7 +250,8 @@ export default function World(props: WorldProps) {
         ].includes(e.code)
       )
         e.preventDefault();
-      if (e.code === 'KeyE' && !e.repeat && worldRef.current?.near)
+      if (e.code === 'KeyE' && !e.repeat && withinTalkingDistance()) beginTalking();
+      else if (e.code === 'KeyE' && !e.repeat && worldRef.current?.near)
         beginInteraction(worldRef.current.near.id);
       else worldRef.current?.keys.add(e.code);
     };
@@ -225,13 +268,15 @@ export default function World(props: WorldProps) {
       if (
         document.pointerLockElement === canvas &&
         !propsRef.current.paused &&
-        !interactionRef.current
+        !interactionRef.current &&
+        !propsRef.current.conversation
       )
         worldRef.current?.look(e.movementX, e.movementY);
     };
     const lock = () => setFreeLook(document.pointerLockElement === canvas);
     let frame = 0,
-      last = performance.now();
+      last = performance.now(),
+      lastAnchor = 0;
     const visibility = () => {
       last = performance.now();
       if (document.hidden) clear();
@@ -241,6 +286,11 @@ export default function World(props: WorldProps) {
       // Visibility and pause events release the hold rather than banking hidden time.
       const dt = Math.max(0, (now - last) / 1000);
       last = now;
+      if (propsRef.current.conversation && now - lastAnchor > 90) {
+        lastAnchor = now;
+        const anchor = worldRef.current?.getConversationAnchor();
+        if (anchor) propsRef.current.onConversationAnchor?.(anchor);
+      }
       if (!document.hidden && !propsRef.current.paused) {
         if (interactionRef.current?.holding) act({ type: 'tick' }, dt);
         for (const step of worldRef.current?.drainFootsteps() ?? [])
@@ -280,6 +330,24 @@ export default function World(props: WorldProps) {
     };
   }, [props.act, props.preview]);
   useEffect(() => {
+    const world = worldRef.current;
+    if (props.conversation) {
+      world?.setConversation(props.conversation);
+      drag.current = null;
+      if (document.pointerLockElement) void document.exitPointerLock();
+    } else {
+      world?.clearConversation();
+      if (wasTalking.current && !propsRef.current.paused && !interactionRef.current) {
+        const frame = requestAnimationFrame(() =>
+          canvasRef.current?.focus({ preventScroll: true }),
+        );
+        wasTalking.current = false;
+        return () => cancelAnimationFrame(frame);
+      }
+    }
+    wasTalking.current = !!props.conversation;
+  }, [props.conversation]);
+  useEffect(() => {
     if (props.paused) {
       worldRef.current?.keys.clear();
       drag.current = null;
@@ -295,7 +363,7 @@ export default function World(props: WorldProps) {
             ?.querySelector<HTMLButtonElement>('.cn-interaction-action')
             ?.focus({ preventScroll: true });
         else if (active) actionPanel.current?.focus({ preventScroll: true });
-        else canvasRef.current?.focus({ preventScroll: true });
+        else if (!propsRef.current.conversation) canvasRef.current?.focus({ preventScroll: true });
       });
       return () => cancelAnimationFrame(frame);
     }
@@ -308,7 +376,24 @@ export default function World(props: WorldProps) {
         ?.focus({ preventScroll: true });
     else actionPanel.current?.focus({ preventScroll: true });
   }, [interaction?.step, interaction?.complete]);
-  const tracker = nearestClue(props.act, props.collected, position.x, position.z);
+  const actor = conversationActors[props.act];
+  const talkTarget = actor.id === 'jailer' ? actor.approach : actor;
+  const nearTalk =
+    props.talkAvailable && Math.hypot(position.x - talkTarget.x, position.z - talkTarget.z) < 3.2;
+  const tracker =
+    nearestClue(props.act, props.collected, position.x, position.z) ??
+    (props.talkAvailable
+      ? {
+          point: {
+            id: actor.id,
+            act: props.act,
+            label: `Talk to ${actor.name}`,
+            x: talkTarget.x,
+            z: talkTarget.z,
+          },
+          distance: Math.hypot(position.x - talkTarget.x, position.z - talkTarget.z),
+        }
+      : null);
   const bearing = tracker ? clueBearing(position.x, position.z, position.yaw, tracker.point) : 0;
   const direction =
     Math.abs(bearing) < 0.4
@@ -338,7 +423,14 @@ export default function World(props: WorldProps) {
           cursor: props.preview ? 'default' : freeLook ? 'none' : 'grab',
         }}
         onPointerDown={(e) => {
-          if (props.paused || props.preview || interactionRef.current || freeLook) return;
+          if (
+            props.paused ||
+            props.preview ||
+            interactionRef.current ||
+            props.conversation ||
+            freeLook
+          )
+            return;
           e.currentTarget.focus();
           drag.current = { x: e.clientX, y: e.clientY, id: e.pointerId };
           e.currentTarget.setPointerCapture(e.pointerId);
@@ -380,15 +472,24 @@ export default function World(props: WorldProps) {
                 {h.label}
               </button>
             ))}
+          {props.talkAvailable && (
+            <button
+              disabled={props.paused || !!interaction || !!props.conversation}
+              className="cn-talk"
+              onClick={() => props.onTalk?.()}
+            >
+              Talk to {actor.name}
+            </button>
+          )}
         </div>
       )}
-      {!props.preview && !props.paused && !error && (
+      {!props.preview && !props.paused && !error && !props.conversation && (
         <>
           {directions && tracker && !interaction && (
             <div
               className="cn-tracker"
               role="status"
-              aria-label={`Next evidence: ${tracker.point.label}, ${Math.round(tracker.distance)} metres, ${direction.toLowerCase()}`}
+              aria-label={`${props.talkAvailable ? 'Directions' : 'Next evidence'}: ${tracker.point.label}, ${Math.round(tracker.distance)} metres, ${direction.toLowerCase()}`}
             >
               <span
                 className="cn-tracker-arrow"
@@ -406,12 +507,20 @@ export default function World(props: WorldProps) {
               </div>
             </div>
           )}
-          {near && !interaction && (
-            <button className="cn-inspect" onClick={() => beginInteraction(near.id)}>
+          {nearTalk && !interaction ? (
+            <button className="cn-inspect cn-talk" onClick={beginTalking}>
               <kbd>E</kbd>
-              {props.collected.includes(near.id) && 'Revisit · '}
-              {near.label}
+              {props.talkResuming ? 'Resume conversation' : `Talk to ${actor.name}`}
             </button>
+          ) : (
+            near &&
+            !interaction && (
+              <button className="cn-inspect" onClick={() => beginInteraction(near.id)}>
+                <kbd>E</kbd>
+                {props.collected.includes(near.id) && 'Revisit · '}
+                {near.label}
+              </button>
+            )
           )}
           {tracker && !interaction && (
             <button

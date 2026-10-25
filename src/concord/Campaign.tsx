@@ -2,7 +2,16 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import World, { hotspots } from './World';
 import Frontispiece from './Frontispiece';
 import Study, { SourcePanel } from './Study';
-import { debates, evidence, type Debate, type Evidence } from './data';
+import { evidence, type Evidence } from './data';
+import Conversation, { type SpeechAnchor } from './ConversationView';
+import {
+  advanceConversation,
+  conversationActors,
+  startConversation,
+  type ConversationAction,
+  type ConversationState,
+} from './conversation';
+import type { ConversationPose } from './scene';
 import { freshSave, readSave, SAVE_KEY, type ConcordSave } from './save';
 import { ConcordAudio } from './audio';
 import './concord.css';
@@ -117,253 +126,6 @@ function Modal({
   );
 }
 
-function Portrait({ kind }: { kind: number }) {
-  return (
-    <svg
-      className="cn-portrait"
-      viewBox="0 0 120 150"
-      aria-hidden="true"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.4"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M14 144q5-28 30-34l2-19m30 1 2 18q24 8 29 34" fill="#b8b8a1" />
-      <path d="M44 111l16 13-9 18-14-28m41-3-18 13 9 18 16-27" fill="#e8dfc8" />
-      <path d="M43 57q-7 24 4 40 12 13 25 0 12-14 7-40" fill="#d7c8a9" />
-      {kind % 2 === 0 ? (
-        <path d="M29 56q34-12 63-1l-1 7q-36 7-63 0zm11-3 4-31 34 1 8 30" fill="#5d6858" />
-      ) : (
-        <path d="M40 59q-8-32 20-31 27-2 23 31l-10-9-13-6-12 9z" fill="#5c6657" />
-      )}
-      <path d="M45 68q7-4 12 0m8 0q6-4 12 0m-27 3 2 1m17-1 2 1m-11-1-3 13 6 1m-9 7q8 3 14-1" />
-      <path
-        d={
-          kind === 2
-            ? 'M45 87q1 24 16 25 15-8 16-25l-8 12-10 3-7-8z'
-            : 'M44 88q2 10 6 13m25-14q-1 9-6 15'
-        }
-      />
-      {Array.from({ length: 12 }, (_, i) => (
-        <path
-          key={i}
-          d={`M${18 + i * 7} 142l${i < 6 ? 9 : -8} -${13 + (i % 4) * 4}`}
-          opacity=".5"
-        />
-      ))}
-      <path d="M48 38l21 2m-24 5 29 1m-16 82-1 14m-26-23-8 15m68-17 9 16" opacity=".4" />
-    </svg>
-  );
-}
-
-function DebateEncounter({
-  debate,
-  onWin,
-  onResolved,
-  onClose,
-}: {
-  debate: Debate;
-  onWin: () => void;
-  onResolved: () => void;
-  onClose: () => void;
-}) {
-  const [round, setRound] = useState(0),
-    [claim, setClaim] = useState<number | null>(null),
-    [card, setCard] = useState<string | null>(null);
-  const [step, setStep] = useState<'reply' | 'passage'>('reply');
-  const [feedback, setFeedback] = useState<{ correct: boolean; text: string } | null>(null),
-    [won, setWon] = useState(false);
-  const [paragraph, setParagraph] = useState<number | null>(null);
-  const current = debate.rounds[round];
-  const hand = useRef<Evidence[][]>(
-    debate.rounds.map((r, i) => {
-      const target = evidence.find((e) => e.id === r.evidenceId)!;
-      const others = evidence.slice(0, (debate.id + 1) * 3).filter((e) => e.id !== target.id);
-      return [target, ...[...others.slice(i), ...others.slice(0, i)].slice(0, 3)].sort((a, b) =>
-        a.id.localeCompare(b.id),
-      );
-    }),
-  );
-  function submit() {
-    if (claim === null || !card || feedback) return;
-    const correct = current.claims[claim].correct && card === current.evidenceId;
-    setFeedback({
-      correct,
-      text: correct
-        ? current.explanation
-        : !current.claims[claim].correct
-          ? current.claims[claim].explanation
-          : 'Your reply fits Thoreau’s position, but this passage does not support it. Look for the words that answer this particular objection.',
-    });
-  }
-  function advance() {
-    if (feedback?.correct && round === debate.rounds.length - 1) {
-      onResolved();
-      setWon(true);
-      return;
-    }
-    if (feedback?.correct) setRound((n) => n + 1);
-    setClaim(null);
-    setCard(null);
-    setFeedback(null);
-    setStep('reply');
-  }
-  useEffect(() => {
-    const key = (e: KeyboardEvent) => {
-      if (won || feedback || paragraph !== null || e.altKey || e.ctrlKey || e.metaKey || e.repeat)
-        return;
-      if (/^[1-4]$/.test(e.key)) {
-        const i = Number(e.key) - 1;
-        if (step === 'reply' && i < current.claims.length) {
-          e.preventDefault();
-          setClaim(i);
-        } else if (step === 'passage' && i < hand.current[round].length) {
-          e.preventDefault();
-          setCard(hand.current[round][i].id);
-        }
-      }
-    };
-    window.addEventListener('keydown', key);
-    return () => window.removeEventListener('keydown', key);
-  }, [won, feedback, paragraph, step, current, round]);
-  return (
-    <Modal title={debate.title} onClose={won ? onWin : onClose} wide>
-      {won ? (
-        <div className="cn-debate-victory">
-          <Portrait kind={debate.id} />
-          <p className="cn-margin-note">The conversation ends</p>
-          <h2>{debate.title}</h2>
-          <p>You have answered all three objections using the essay.</p>
-          <button className="cn-button cn-primary" onClick={onWin}>
-            Continue the night
-          </button>
-        </div>
-      ) : (
-        <>
-          <div className="cn-conversation-heading">
-            <Portrait kind={debate.id} />
-            <div>
-              <p className="cn-margin-note">{debate.speaker}</p>
-              <blockquote>{current.objection}</blockquote>
-            </div>
-          </div>
-          <p className="cn-conversation-step">
-            {round + 1} of 3 <span aria-hidden="true">—</span>{' '}
-            {step === 'reply' ? 'What do you say?' : 'Which passage supports your reply?'}
-          </p>
-          {step === 'reply' ? (
-            <>
-              <div className="cn-claim-grid">
-                {current.claims.map((choice, i) => (
-                  <button
-                    className={`cn-claim ${claim === i ? 'selected' : ''}`}
-                    key={choice.text}
-                    aria-pressed={claim === i}
-                    onClick={() => setClaim(i)}
-                  >
-                    <span>{i + 1}.</span>
-                    {choice.text}
-                  </button>
-                ))}
-              </div>
-              <div className="cn-conversation-actions">
-                <button
-                  className="cn-button cn-primary"
-                  disabled={claim === null}
-                  onClick={() => setStep('passage')}
-                >
-                  Choose a supporting passage
-                </button>
-              </div>
-            </>
-          ) : (
-            <>
-              <details className="cn-your-reply">
-                <summary>Your reply</summary>
-                <p>{claim !== null ? current.claims[claim].text : ''}</p>
-              </details>
-              <div className="cn-evidence-hand">
-                {hand.current[round].map((e, i) => (
-                  <button
-                    className={`cn-evidence-card ${card === e.id ? 'selected' : ''}`}
-                    key={e.id}
-                    aria-pressed={card === e.id}
-                    disabled={!!feedback}
-                    onClick={() => setCard(e.id)}
-                  >
-                    <span className="cn-passage-number">{i + 1}.</span>
-                    <q>{e.quote}</q>
-                    <span className="cn-passage-reference">Paragraph {e.paragraph}</span>
-                  </button>
-                ))}
-              </div>
-              {!feedback && (
-                <details className="cn-debate-hint">
-                  <summary>Need a hint?</summary>
-                  <p>
-                    Look for the passage about{' '}
-                    {evidence.find((e) => e.id === current.evidenceId)?.title.toLowerCase()}.
-                  </p>
-                </details>
-              )}
-              {feedback && (
-                <div
-                  className={`cn-feedback ${feedback.correct ? 'correct' : 'incorrect'}`}
-                  role="status"
-                >
-                  <p>{feedback.text}</p>
-                  <button
-                    className="cn-text-button"
-                    onClick={() =>
-                      setParagraph(evidence.find((e) => e.id === current.evidenceId)!.paragraph)
-                    }
-                  >
-                    Read the supporting passage
-                  </button>
-                </div>
-              )}
-              <div className="cn-conversation-actions">
-                {feedback ? (
-                  <button className="cn-button cn-primary" onClick={advance}>
-                    {feedback.correct
-                      ? round === 2
-                        ? 'Finish the debate'
-                        : 'Next objection'
-                      : 'Revise your argument'}
-                  </button>
-                ) : (
-                  <>
-                    <button
-                      className="cn-text-button"
-                      onClick={() => {
-                        setStep('reply');
-                        setCard(null);
-                      }}
-                    >
-                      Change your reply
-                    </button>
-                    <button
-                      className="cn-button cn-primary"
-                      disabled={card === null}
-                      onClick={submit}
-                    >
-                      Commit argument
-                    </button>
-                  </>
-                )}
-              </div>
-            </>
-          )}
-          {paragraph !== null && (
-            <SourcePanel paragraph={paragraph} onClose={() => setParagraph(null)} />
-          )}
-        </>
-      )}
-    </Modal>
-  );
-}
-
 export default function ConcordCampaign() {
   const [save, setSave] = useState<ConcordSave>(readSave),
     [view, setView] = useState<'home' | 'play' | 'study'>('home');
@@ -374,12 +136,15 @@ export default function ConcordCampaign() {
     [settings, setSettings] = useState(false),
     [paused, setPaused] = useState(false);
   const [debate, setDebate] = useState(false),
-    [actComplete, setActComplete] = useState(false),
     [ending, setEnding] = useState(false),
     [paragraph, setParagraph] = useState<number | null>(null);
   const [storageError, setStorageError] = useState(false),
     [confirmReset, setConfirmReset] = useState(false);
   const [interacting, setInteracting] = useState(false);
+  const discussions = useRef<Record<number, ConversationState>>({});
+  const [discussion, setDiscussion] = useState<ConversationState | null>(null);
+  const [delivery, setDelivery] = useState<ConversationPose | null>(null);
+  const [speechAnchor, setSpeechAnchor] = useState<SpeechAnchor>({ x: 0, y: 0, visible: false });
   const returnView = useRef<'home' | 'play'>('home'),
     audio = useRef<ConcordAudio | null>(null);
   const positions = useRef<Record<number, { x: number; z: number; yaw: number; pitch?: number }>>(
@@ -388,8 +153,7 @@ export default function ConcordCampaign() {
   const act = acts[playAct],
     cards = evidence.slice(playAct * 3, playAct * 3 + 3),
     found = cards.filter((e) => save.collected.includes(e.id)).length;
-  const blocked =
-    intro || settings || paused || !!inspected || debate || actComplete || paragraph !== null;
+  const blocked = intro || settings || paused || !!inspected || paragraph !== null;
   useEffect(() => {
     try {
       localStorage.setItem(SAVE_KEY, JSON.stringify(save));
@@ -428,7 +192,6 @@ export default function ConcordCampaign() {
         settings ||
         inspected ||
         debate ||
-        actComplete ||
         paragraph !== null
       )
         return;
@@ -440,7 +203,7 @@ export default function ConcordCampaign() {
     };
     window.addEventListener('keydown', key);
     return () => window.removeEventListener('keydown', key);
-  }, [view, intro, settings, inspected, debate, actComplete, paragraph, paused, interacting]);
+  }, [view, intro, settings, inspected, debate, paragraph, paused, interacting]);
   function openStudy(tab: 'practice' | 'source' | 'journal') {
     returnView.current = view === 'play' ? 'play' : 'home';
     setStudyTab(tab);
@@ -452,6 +215,8 @@ export default function ConcordCampaign() {
     setView('play');
     setIntro(true);
     setEnding(false);
+    setDebate(false);
+    setDelivery(null);
   }
   function inspect(id: string) {
     const item = evidence.find((e) => e.id === id);
@@ -467,13 +232,38 @@ export default function ConcordCampaign() {
       act: Math.max(s.act, Math.min(3, playAct + 1)),
     }));
   }
-  function finishDebate() {
-    recordDebate();
+  function startTalking() {
+    const previous = discussions.current[playAct];
+    const next =
+      previous && previous.stage !== 'complete'
+        ? advanceConversation(previous, { type: 'resume' })
+        : startConversation(playAct);
+    discussions.current[playAct] = next;
+    setDiscussion(next);
+    setDebate(true);
+    setDelivery({
+      actorId: conversationActors[playAct].id,
+      phase: 'speaking',
+      beat: next.round * 10,
+      speaking: true,
+    });
+  }
+  function conversationAction(action: ConversationAction) {
+    const previous = discussions.current[playAct];
+    if (!previous) return;
+    const next = advanceConversation(previous, action);
+    discussions.current[playAct] = next;
+    setDiscussion(next);
+    if (next.stage === 'farewell' && previous.stage !== 'farewell') recordDebate();
+  }
+  function stepAway() {
+    conversationAction({ type: 'leave' });
     setDebate(false);
-    setActComplete(true);
+    setDelivery(null);
   }
   function continueJourney() {
-    setActComplete(false);
+    setDebate(false);
+    setDelivery(null);
     if (playAct === 3) {
       setEnding(true);
       setView('home');
@@ -539,6 +329,14 @@ export default function ConcordCampaign() {
             reduced={save.reduced}
             onInspect={inspect}
             onInteractionActive={setInteracting}
+            talkAvailable={found === 3}
+            talkResuming={
+              !!discussions.current[playAct] && discussions.current[playAct].stage !== 'complete'
+            }
+            onTalk={startTalking}
+            onStepAway={stepAway}
+            conversation={debate ? delivery : null}
+            onConversationAnchor={setSpeechAnchor}
             onSound={(cue, surface, speed) => audio.current?.play(cue, surface, speed)}
             initialPose={positions.current[playAct]}
             onPosition={(x, z, yaw, pitch) => {
@@ -550,7 +348,7 @@ export default function ConcordCampaign() {
               Pause <kbd>Esc</kbd>
             </button>
             <button
-              disabled={interacting}
+              disabled={interacting || debate}
               onClick={() => openStudy('journal')}
               aria-label="Open evidence journal"
             >
@@ -563,25 +361,14 @@ export default function ConcordCampaign() {
             </p>
             <h1>{act.name}</h1>
           </div>
-          {found === 3 && !blocked && !interacting && (
+          {found === 3 && !blocked && !interacting && !debate && save.debates.includes(playAct) && (
             <div className="cn-ready-action">
-              {save.debates.includes(playAct) ? (
-                <>
-                  <button className="cn-button" onClick={continueJourney}>
-                    {playAct === 3
-                      ? 'See your journey'
-                      : `Continue to ${acts[playAct + 1].time.toLowerCase()}`}{' '}
-                    →
-                  </button>
-                  <button className="cn-text-button" onClick={() => setDebate(true)}>
-                    Revisit the conversation
-                  </button>
-                </>
-              ) : (
-                <button className="cn-button" onClick={() => setDebate(true)}>
-                  Enter the debate →
-                </button>
-              )}
+              <button className="cn-button" onClick={continueJourney}>
+                {playAct === 3
+                  ? 'See your journey'
+                  : `Continue to ${acts[playAct + 1].time.toLowerCase()}`}{' '}
+                →
+              </button>
             </div>
           )}
           {intro && (
@@ -634,35 +421,18 @@ export default function ConcordCampaign() {
               </div>
             </Modal>
           )}
-          {debate && (
-            <DebateEncounter
-              debate={debates[playAct]}
-              onWin={finishDebate}
-              onResolved={recordDebate}
-              onClose={() => setDebate(false)}
+          {debate && discussion && (
+            <Conversation
+              state={discussion}
+              reduced={save.reduced}
+              paused={blocked}
+              anchor={speechAnchor}
+              ending={act.ending}
+              onAction={conversationAction}
+              onDelivery={setDelivery}
+              onClose={stepAway}
+              onContinue={continueJourney}
             />
-          )}
-          {actComplete && (
-            <Modal title="Act complete" onClose={() => setActComplete(false)}>
-              <p className="cn-margin-note">{act.place}</p>
-              <h2>{playAct === 3 ? 'Morning in Concord' : 'Later that night'}</h2>
-              <p className="cn-story-text">{act.ending}</p>
-              <button className="cn-button cn-primary" onClick={continueJourney}>
-                {playAct === 3
-                  ? 'See your journey'
-                  : `Continue to ${acts[playAct + 1].time.toLowerCase()}`}{' '}
-                →
-              </button>
-              <button
-                className="cn-text-button cn-block"
-                onClick={() => {
-                  setActComplete(false);
-                  openStudy('practice');
-                }}
-              >
-                Practice before moving on
-              </button>
-            </Modal>
           )}
           {paused && (
             <Modal title="Paused" onClose={() => setPaused(false)}>
@@ -785,6 +555,8 @@ export default function ConcordCampaign() {
                     className="cn-button cn-danger"
                     onClick={() => {
                       positions.current = {};
+                      discussions.current = {};
+                      setDiscussion(null);
                       setSave(freshSave());
                       setPlayAct(0);
                       setConfirmReset(false);

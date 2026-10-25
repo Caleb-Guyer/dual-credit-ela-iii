@@ -3,6 +3,12 @@ import { debates, evidence, questions, source } from '../../src/concord/data';
 import { freshSave, SAVE_KEY, type ConcordSave } from '../../src/concord/save';
 import { interactionDefs } from '../../src/concord/interactions';
 import { hotspots } from '../../src/concord/navigation';
+import {
+  conversationActors,
+  conversationDialogue,
+  conversationHand,
+  conversationReply,
+} from '../../src/concord/conversation';
 import type { ConcordWorld } from '../../src/concord/scene';
 
 declare global {
@@ -132,6 +138,122 @@ async function approachObject(page: Page, id: string, touch = false) {
   await expect(
     page.getByRole('dialog', { name: interactionDefs[id].title, exact: true }),
   ).toBeVisible();
+}
+
+async function approachSpeaker(page: Page, act: number, touch = false, distance?: number) {
+  const actor = conversationActors[act];
+  let { x, z } = actor.approach;
+  if (distance !== undefined) {
+    const dx = x - actor.x,
+      dz = z - actor.z,
+      length = Math.hypot(dx, dz);
+    x = actor.x + (dx / length) * distance;
+    z = actor.z + (dz / length) * distance;
+  }
+  await placePlayer(page, x, z, actor.approach.yaw);
+  await expect(page.locator('.cn-talk')).toBeVisible();
+  if (touch) await page.locator('.cn-talk').tap();
+  else await page.keyboard.press('e');
+  await expect(page.locator('.cn-conversation')).toBeVisible();
+  await expect(page.locator('.cn-modal-backdrop, .cn-portrait, .cn-debate-victory')).toHaveCount(0);
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect
+    .poll(() => page.evaluate(() => window.concordTest.getConversationAnchor().visible))
+    .toBe(true);
+}
+
+async function revealSpeech(page: Page) {
+  const reveal = page.getByRole('button', { name: 'Show whole line', exact: false });
+  if (await reveal.isVisible()) await reveal.click();
+}
+
+async function expectSpeakerFacingPlayer(page: Page, act: number) {
+  await expect
+    .poll(() =>
+      page.evaluate((id) => {
+        const world = window.concordTest;
+        const actor = world.scene.children.find((object) => object.userData.actorId === id)!;
+        const facing = Math.atan2(
+          world.camera.position.x - actor.position.x,
+          world.camera.position.z - actor.position.z,
+        );
+        return Math.abs(
+          Math.atan2(Math.sin(actor.rotation.y - facing), Math.cos(actor.rotation.y - facing)),
+        );
+      }, conversationActors[act].id),
+    )
+    .toBeLessThan(0.15);
+}
+
+async function expectFaceClearOfSpeech(page: Page, act: number) {
+  await expectSpeakerFacingPlayer(page, act);
+  const face = await page.evaluate((id) => {
+    const world = window.concordTest;
+    const actor = world.scene.children.find((object) => object.userData.actorId === id)!;
+    const head = actor.getObjectByName('Conversation mouth')!.parent!;
+    head.updateWorldMatrix(true, false);
+    world.camera.updateMatrixWorld();
+    const canvas = world.canvas.getBoundingClientRect();
+    const points = [];
+    for (const x of [-0.18, 0.18])
+      for (const y of [-0.2, 0.23])
+        for (const z of [-0.16, 0.18]) {
+          const point = head.position
+            .clone()
+            .set(x, y, z)
+            .applyMatrix4(head.matrixWorld)
+            .project(world.camera);
+          points.push({
+            x: canvas.left + (point.x * 0.5 + 0.5) * canvas.width,
+            y: canvas.top + (0.5 - point.y * 0.5) * canvas.height,
+          });
+        }
+    return {
+      left: Math.min(...points.map((p) => p.x)),
+      right: Math.max(...points.map((p) => p.x)),
+      top: Math.min(...points.map((p) => p.y)),
+      bottom: Math.max(...points.map((p) => p.y)),
+    };
+  }, conversationActors[act].id);
+  const bubble = (await page.locator('.cn-speech').boundingBox())!;
+  const overlapWidth = Math.max(
+    0,
+    Math.min(face.right, bubble.x + bubble.width) - Math.max(face.left, bubble.x),
+  );
+  const overlapHeight = Math.max(
+    0,
+    Math.min(face.bottom, bubble.y + bubble.height) - Math.max(face.top, bubble.y),
+  );
+  expect(
+    overlapWidth * overlapHeight,
+    'The dialogue must not cover the speaker’s face',
+  ).toBeLessThan(4);
+}
+
+async function chooseReply(page: Page, text: string) {
+  await revealSpeech(page);
+  await expect(page.locator('.cn-reply')).toHaveCount(3);
+  await expect(page.locator('.cn-conversation-quote')).toHaveCount(0);
+  await page.locator('.cn-reply').filter({ hasText: text }).click();
+  await expect(page.locator('.cn-reply')).toHaveCount(0);
+  await expect(page.locator('.cn-conversation-quote')).toBeVisible();
+}
+
+async function usePassage(page: Page, quote: string, maximum = 4, touch = false) {
+  const passage = page.locator('.cn-conversation-quote');
+  for (let attempt = 0; attempt < maximum; attempt++) {
+    if ((await passage.innerText()).includes(quote)) break;
+    const before = await passage.innerText();
+    const next = page.getByRole('button', { name: 'Next passage', exact: true });
+    if (touch) await next.tap();
+    else await next.click();
+    await expect(passage).not.toHaveText(before);
+  }
+  await expect(passage).toContainText(quote);
+  const use = page.getByRole('button', { name: 'Use this passage', exact: false });
+  if (touch) await use.tap();
+  else await use.click();
+  await revealSpeech(page);
 }
 
 /** Exercise the actual pointer/choice controls; completion alone does not collect a passage. */
@@ -487,7 +609,9 @@ test('a returning reader can replay a collected scene without changing reading h
   expect(new Set((await saved(page)).collected).size).toBe(12);
 });
 
-test('all four conversations require a reply followed by supporting evidence', async ({ page }) => {
+test('all four debates stay with their 3D speakers through replies, evidence, reactions and farewells', async ({
+  page,
+}) => {
   const errors: string[] = [];
   const renderingWarnings: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
@@ -496,90 +620,153 @@ test('all four conversations require a reply followed by supporting evidence', a
   });
   await setup(page, { collected: evidence.map((card) => card.id) });
   await enter(page);
-  async function reply(text: string) {
-    await expect(page.locator('.cn-evidence-hand')).toHaveCount(0);
-    const next = page.getByRole('button', { name: 'Choose a supporting passage', exact: true });
-    await expect(next).toBeDisabled();
-    await page.locator('.cn-claim').filter({ hasText: text }).click();
-    await next.click();
-    await expect(page.locator('.cn-claim-grid')).toHaveCount(0);
-    await expect(page.getByRole('button', { name: 'Commit argument', exact: true })).toBeDisabled();
-  }
+  await observeWorld(page);
+  await expect(page.getByRole('button', { name: /^Enter the debate/ })).toHaveCount(0);
+  await expect(page.locator('.cn-talk')).toHaveCount(0);
   for (let act = 0; act < debates.length; act++) {
-    await page.getByRole('button', { name: /^Enter the debate/ }).click();
+    const actor = conversationActors[act];
     const debate = debates[act];
-    await expect(page.getByRole('dialog', { name: debate.title, exact: true })).toBeVisible();
-    if (act === 0) await page.screenshot({ path: 'docs/screenshots/concord-debate.png' });
+    await approachSpeaker(page, act);
+    await revealSpeech(page);
+    await expect(page.locator('.cn-reply')).toHaveCount(3);
+    await expect(page.locator('.cn-speech')).toContainText(debate.rounds[0].objection);
+    await expectSpeakerFacingPlayer(page, act);
+    await expect
+      .poll(() =>
+        page.evaluate((id) => {
+          const actor = window.concordTest.scene.children.find(
+            (object) => object.userData.actorId === id,
+          );
+          return actor?.userData.conversationPhase;
+        }, actor.id),
+      )
+      .toBe('listening');
+    const actorFrame = await page.evaluate((id) => {
+      const world = window.concordTest;
+      const actor = world.scene.children.find((object) => object.userData.actorId === id)!;
+      const bearing = Math.atan2(
+        world.camera.position.x - actor.position.x,
+        world.camera.position.z - actor.position.z,
+      );
+      return {
+        anchor: world.getConversationAnchor(),
+        difference: Math.abs(
+          Math.atan2(Math.sin(world.yaw - bearing), Math.cos(world.yaw - bearing)),
+        ),
+      };
+    }, actor.id);
+    expect(actorFrame.anchor.visible).toBe(true);
+    expect(actorFrame.difference).toBeLessThan(0.55);
+    const speechBox = (await page.locator('.cn-speech').boundingBox())!;
+    expect(speechBox.x).toBeGreaterThanOrEqual(0);
+    expect(speechBox.x + speechBox.width).toBeLessThanOrEqual(page.viewportSize()!.width + 1);
+    expect(speechBox.y).toBeGreaterThanOrEqual(0);
+    if (act === 0) {
+      // Walking away returns control to the world and keeps this exchange ready.
+      await page.keyboard.down('w');
+      await expect(page.locator('.cn-conversation')).toHaveCount(0);
+      await page.keyboard.up('w');
+      await approachSpeaker(page, act);
+      await revealSpeech(page);
+      await expect(page.locator('.cn-speech')).toContainText(debate.rounds[0].objection);
+      expect((await saved(page)).debates).toEqual([]);
+    }
+    if (act === 0) await page.screenshot({ path: 'docs/screenshots/concord-conversation.png' });
+    if (act === 2)
+      await page.screenshot({ path: 'docs/screenshots/concord-conversation-jail.png' });
     for (let index = 0; index < debate.rounds.length; index++) {
       const round = debate.rounds[index];
       const claim = round.claims.find((choice) => choice.correct)!;
       const target = evidence.find((card) => card.id === round.evidenceId)!;
+      const response = conversationDialogue[act][index];
       if (act === 0 && index === 0) {
         const wrong = round.claims.find((choice) => !choice.correct)!;
-        await reply(wrong.text);
-        await page.locator('.cn-evidence-card').filter({ hasText: target.quote }).click();
-        await page.getByRole('button', { name: 'Commit argument', exact: true }).click();
-        await expect(page.locator('.cn-feedback')).toContainText(wrong.explanation);
-        await page.getByRole('button', { name: 'Revise your argument', exact: true }).click();
+        await chooseReply(page, conversationReply(act, index, round.claims.indexOf(wrong)));
+        await usePassage(page, target.quote);
+        await expect(page.locator('.cn-speech')).toContainText(response.wrongClaims[0]);
+        const note = page.locator('.cn-conversation details').first();
+        await note.locator('summary').click();
+        await expect(note).toContainText(wrong.explanation);
+        await expect(page.locator('.cn-modal-backdrop')).toHaveCount(0);
+        await page.getByRole('button', { name: 'Let me try again', exact: false }).click();
+        expect((await saved(page)).debates).not.toContain(0);
       }
       if (act === 1 && index === 0) {
-        await reply(claim.text);
-        await page
-          .locator('.cn-evidence-card')
-          .filter({ hasNotText: target.quote })
-          .first()
-          .click();
-        await page.getByRole('button', { name: 'Commit argument', exact: true }).click();
-        await expect(page.locator('.cn-feedback')).toContainText('Your reply fits Thoreau');
-        await page.getByRole('button', { name: 'Revise your argument', exact: true }).click();
+        await chooseReply(page, conversationReply(act, index, round.claims.indexOf(claim)));
+        const wrong = conversationHand(act, index).find((card) => card.id !== target.id)!;
+        await usePassage(page, wrong.quote);
+        await expect(page.locator('.cn-speech')).toContainText(response.wrongEvidence);
+        await page.getByRole('button', { name: 'Let me try again', exact: false }).click();
+        expect((await saved(page)).debates).not.toContain(1);
       }
-      await reply(claim.text);
-      await page.locator('.cn-evidence-card').filter({ hasText: target.quote }).click();
-      await page.getByRole('button', { name: 'Commit argument', exact: true }).click();
-      await expect(page.locator('.cn-feedback')).toContainText(round.explanation);
-      await page
-        .getByRole('button', {
-          name: index === 2 ? 'Finish the debate' : 'Next objection',
-          exact: true,
-        })
-        .click();
+      await chooseReply(page, conversationReply(act, index, round.claims.indexOf(claim)));
+      await revealSpeech(page);
+      await expect(page.locator('.cn-speech')).toContainText(response.request);
+      if (act === 0 && index === 1) {
+        await page.getByRole('button', { name: 'Next passage', exact: true }).click();
+        const beforeLeaving = await page.locator('.cn-conversation-quote').innerText();
+        const quotedId = await page.locator('.cn-conversation-quote').getAttribute('data-evidence');
+        const quotedCard = evidence.find((card) => card.id === quotedId)!;
+        await page.getByRole('button', { name: 'Read in context', exact: true }).click();
+        await expect(page.locator('dialog[open]')).toContainText(
+          source.find((paragraph) => paragraph.id === quotedCard.paragraph)!.text,
+        );
+        await page.keyboard.press('ArrowRight');
+        await expect(page.locator('.cn-conversation')).toHaveCount(1);
+        await page.keyboard.press('Escape');
+        await expect(page.locator('dialog[open]')).toHaveCount(0);
+        await expect(page.locator('.cn-conversation-quote')).toHaveText(beforeLeaving);
+        await page.getByRole('button', { name: 'Step away', exact: false }).click();
+        await expect(page.locator('.cn-conversation')).toHaveCount(0);
+        await expect(page.getByRole('dialog')).toHaveCount(0);
+        await approachSpeaker(page, act);
+        await revealSpeech(page);
+        await expect(page.locator('.cn-conversation-quote')).toHaveText(beforeLeaving);
+        await expect(page.locator('.cn-reply')).toHaveCount(0);
+        expect((await saved(page)).debates).not.toContain(0);
+      }
+      await usePassage(page, target.quote);
+      await expect(page.locator('.cn-speech')).toContainText(response.agree);
+      await expect(page.locator('.cn-modal-backdrop, .cn-debate-victory')).toHaveCount(0);
+      await page.getByRole('button', { name: 'Go on', exact: false }).click();
     }
-    await expect(page.locator('.cn-debate-victory')).toContainText(
-      'You have answered all three objections',
-    );
+    await revealSpeech(page);
+    await expect(page.locator('.cn-speech')).toContainText(actor.farewell);
     await expect.poll(async () => (await saved(page)).debates).toContain(act);
+    await expect(page.locator('.cn-modal-backdrop, .cn-debate-victory')).toHaveCount(0);
     if (act === 0) {
+      // A resolved conversation is saved before the player chooses to leave the scene.
       await page.reload();
       await enter(page);
+      await observeWorld(page);
       continue;
     }
-    if (act === 1) await page.keyboard.press('Escape');
-    else await page.getByRole('button', { name: 'Continue the night', exact: true }).click();
-    const completion = page.getByRole('dialog', { name: 'Act complete', exact: true });
-    await expect(completion).toBeVisible();
     if (act === 1) {
-      await completion
-        .getByRole('button', { name: 'Practice before moving on', exact: true })
-        .click();
-      await page.getByRole('button', { name: /Back to game/ }).click();
-      await page
-        .locator('.cn-ready-action')
-        .getByRole('button', { name: /^Continue to / })
-        .click();
-    } else if (act === 2) {
-      await completion.getByRole('button', { name: 'Close Act complete', exact: true }).click();
-      await page
-        .locator('.cn-ready-action')
-        .getByRole('button', { name: /^Continue to / })
-        .click();
-    } else {
-      await completion.getByRole('button', { name: 'See your journey', exact: false }).click();
+      await page.keyboard.press('Escape');
+      await expect(page.locator('.cn-conversation')).toHaveCount(0);
+      await expect(page.getByRole('dialog', { name: 'Paused', exact: true })).toHaveCount(0);
+      await approachSpeaker(page, act);
+      await revealSpeech(page);
+      await expect(page.locator('.cn-speech')).toContainText(actor.farewell);
     }
+    if (act === 2) {
+      await page.getByRole('button', { name: 'Stay a little longer', exact: true }).click();
+      await page.getByRole('button', { name: 'Open evidence journal', exact: true }).click();
+      await page.getByRole('button', { name: /Back to game/ }).click();
+      await observeWorld(page);
+      await expect(page.locator('.cn-conversation')).toHaveCount(0);
+      await expect.poll(async () => (await saved(page)).debates).toContain(act);
+    }
+    await page
+      .getByRole('button', {
+        name: act === 3 ? 'Finish the journey' : /^Continue to /,
+        exact: false,
+      })
+      .click();
     if (act < 3) {
       await page.getByRole('button', { name: 'Step into the scene', exact: true }).click();
       await expect(page.locator('.cn-world-fallback')).toHaveCount(0);
-      if (act === 1) await page.screenshot({ path: 'docs/screenshots/concord-jail.png' });
-      if (act === 2) await page.screenshot({ path: 'docs/screenshots/concord-dawn.png' });
+      await observeWorld(page);
     }
   }
   await expect(
@@ -590,6 +777,168 @@ test('all four conversations require a reply followed by supporting evidence', a
   expect(progress.debates).toEqual([0, 1, 2, 3]);
   expect(errors).toEqual([]);
   expect(renderingWarnings).toEqual([]);
+});
+
+test('a 3D speaker moves their mouth while talking and listens when replies appear', async ({
+  page,
+}) => {
+  await setup(page, { collected: evidence.map((card) => card.id), reduced: false });
+  await enter(page);
+  await observeWorld(page);
+  await approachSpeaker(page, 0);
+  const actorId = conversationActors[0].id;
+  await expect
+    .poll(() =>
+      page.evaluate((id) => {
+        const actor = window.concordTest.scene.children.find(
+          (object) => object.userData.actorId === id,
+        )!;
+        return actor.userData.speaking;
+      }, actorId),
+    )
+    .toBe(true);
+  const mouthSamples = await page.evaluate(async (id) => {
+    const actor = window.concordTest.scene.children.find(
+      (object) => object.userData.actorId === id,
+    )!;
+    const mouth = actor.getObjectByName('Conversation mouth')!;
+    const started = performance.now();
+    const samples: number[] = [];
+    return new Promise<number[]>((resolve) => {
+      function sample(now: number) {
+        if (actor.userData.speaking) samples.push(mouth.scale.y);
+        if (now - started < 1100) requestAnimationFrame(sample);
+        else resolve(samples);
+      }
+      requestAnimationFrame(sample);
+    });
+  }, actorId);
+  expect(mouthSamples.length).toBeGreaterThan(1);
+  expect(Math.max(...mouthSamples) - Math.min(...mouthSamples)).toBeGreaterThan(0.001);
+  await revealSpeech(page);
+  await expect(page.locator('.cn-reply')).toHaveCount(3);
+  await expect
+    .poll(() =>
+      page.evaluate((id) => {
+        const actor = window.concordTest.scene.children.find(
+          (object) => object.userData.actorId === id,
+        )!;
+        return { speaking: actor.userData.speaking, phase: actor.userData.conversationPhase };
+      }, actorId),
+    )
+    .toEqual({ speaking: false, phase: 'listening' });
+  await page.getByRole('button', { name: 'Pause game', exact: true }).click();
+  await expect(page.getByRole('dialog', { name: 'Paused', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Resume', exact: true }).click();
+  await expect(page.locator('.cn-reply')).toHaveCount(3);
+  await expect(page.locator('.cn-modal-backdrop')).toHaveCount(0);
+  const round = debates[0].rounds[0];
+  const claimIndex = round.claims.findIndex((claim) => claim.correct);
+  await chooseReply(page, conversationReply(0, 0, claimIndex));
+  await usePassage(page, evidence.find((card) => card.id === round.evidenceId)!.quote);
+  const summary = page.locator('.cn-reading-note > summary');
+  await summary.focus();
+  await page.keyboard.press('Tab');
+  await expect(page.getByRole('button', { name: 'Step away', exact: false })).toBeFocused();
+  await page.keyboard.press('Shift+Tab');
+  await expect(summary).toBeFocused();
+  await page.keyboard.press('ArrowDown');
+  await expect(page.locator('.cn-conversation')).toHaveCount(1);
+  await page.getByRole('button', { name: 'Step away', exact: false }).click();
+  await expect(page.locator('.cn-game-shell canvas')).toBeFocused();
+  await approachSpeaker(page, 0, false, 1.05);
+  await revealSpeech(page);
+  await expect(page.locator('.cn-speech')).toContainText(conversationDialogue[0][0].agree);
+  await expectFaceClearOfSpeech(page, 0);
+  await page.screenshot({ path: 'docs/screenshots/concord-conversation-close.png' });
+});
+
+test('phone conversations keep the actor visible and support touch replies and notebook quotations', async ({
+  browser,
+}) => {
+  const context = await browser.newContext({
+    viewport: { width: 390, height: 844 },
+    hasTouch: true,
+    isMobile: true,
+  });
+  const page = await context.newPage();
+  await setup(page, { collected: evidence.map((card) => card.id) });
+  await enter(page);
+  await observeWorld(page);
+  await approachSpeaker(page, 0, true, 1.05);
+  await revealSpeech(page);
+  await expect(page.locator('.cn-reply')).toHaveCount(3);
+  await expectSpeakerFacingPlayer(page, 0);
+  await expectFaceClearOfSpeech(page, 0);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  const speechBox = (await page.locator('.cn-speech').boundingBox())!;
+  expect(speechBox.x).toBeGreaterThanOrEqual(0);
+  expect(speechBox.x + speechBox.width).toBeLessThanOrEqual(391);
+  expect(speechBox.y).toBeGreaterThanOrEqual(0);
+  expect(speechBox.y + speechBox.height).toBeLessThan(844);
+  await page.screenshot({ path: 'docs/screenshots/concord-conversation-phone.png' });
+  const round = debates[0].rounds[0];
+  const reply = round.claims.find((choice) => choice.correct)!;
+  const target = evidence.find((card) => card.id === round.evidenceId)!;
+  await page
+    .locator('.cn-reply')
+    .filter({ hasText: conversationReply(0, 0, round.claims.indexOf(reply)) })
+    .tap();
+  await revealSpeech(page);
+  await expect(page.locator('.cn-conversation-quote')).toContainText(target.quote);
+  await page.getByRole('button', { name: 'Next passage', exact: true }).tap();
+  await expect(page.locator('.cn-conversation-quote')).not.toContainText(target.quote);
+  await page.getByRole('button', { name: 'Previous passage', exact: true }).tap();
+  await expect(page.locator('.cn-conversation-quote')).toContainText(target.quote);
+  await expectFaceClearOfSpeech(page, 0);
+  await page.screenshot({ path: 'docs/screenshots/concord-conversation-phone-notebook.png' });
+  await page.getByRole('button', { name: 'Use this passage', exact: false }).tap();
+  await revealSpeech(page);
+  await expect(page.locator('.cn-speech')).toContainText(conversationDialogue[0][0].agree);
+  await page.getByRole('button', { name: 'Step away', exact: false }).tap();
+  await expect(page.locator('.cn-conversation')).toHaveCount(0);
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  expect((await saved(page)).debates).toEqual([]);
+  await approachSpeaker(page, 0, true, 1.05);
+  await revealSpeech(page);
+  await page.getByRole('button', { name: 'Go on', exact: false }).tap();
+  for (let index = 1; index < debates[0].rounds.length; index++) {
+    const round = debates[0].rounds[index];
+    await revealSpeech(page);
+    await expect(page.locator('.cn-reply')).toHaveCount(3);
+    const claimIndex = round.claims.findIndex((claim) => claim.correct);
+    await page
+      .locator('.cn-reply')
+      .filter({ hasText: conversationReply(0, index, claimIndex) })
+      .tap();
+    await revealSpeech(page);
+    await usePassage(page, evidence.find((card) => card.id === round.evidenceId)!.quote, 4, true);
+    await page.getByRole('button', { name: 'Go on', exact: false }).tap();
+  }
+  await revealSpeech(page);
+  await expect.poll(async () => (await saved(page)).debates).toEqual([0]);
+  await page.getByRole('button', { name: 'Stay a little longer', exact: true }).tap();
+  await expect(page.locator('.cn-conversation')).toHaveCount(0);
+  await expect(page.locator('.cn-talk')).toBeVisible();
+  await expect(page.locator('.cn-ready-action')).toBeVisible();
+  const talkBox = (await page.locator('.cn-talk').boundingBox())!;
+  const continueBox = (await page.locator('.cn-ready-action').boundingBox())!;
+  const overlapWidth = Math.max(
+    0,
+    Math.min(talkBox.x + talkBox.width, continueBox.x + continueBox.width) -
+      Math.max(talkBox.x, continueBox.x),
+  );
+  const overlapHeight = Math.max(
+    0,
+    Math.min(talkBox.y + talkBox.height, continueBox.y + continueBox.height) -
+      Math.max(talkBox.y, continueBox.y),
+  );
+  expect(
+    overlapWidth * overlapHeight,
+    'Continuing the journey must not cover the nearby talk prompt',
+  ).toBe(0);
+  await page.screenshot({ path: 'docs/screenshots/concord-conversation-phone-complete.png' });
+  await context.close();
 });
 
 test('24-question rehearsal withholds answers, explains all choices, saves mastery and clears missed review', async ({

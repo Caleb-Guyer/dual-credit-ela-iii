@@ -22,10 +22,10 @@ The campaign studies Henry David Thoreau's 1849 essay, originally published as *
 
 ## Four-act adaptation
 
-1. **The common / conscience:** Three discoverable evidence cards (`c01`–`c03`) establish conscience, the limits of majority rule, and the difference between a person and a mechanical instrument. The comfortable citizen is a fictional voice of conformity.
+1. **The common / conscience:** Three discoverable evidence cards (`c01`–`c03`) establish conscience, the limits of majority rule, and the difference between a person and a mechanical instrument. Elias, a neighbor on the common, gives a fictional voice to conformity.
 2. **The tax encounter / participation:** Cards `c04`–`c06` examine the minimum duty to withdraw support, counter friction, and the majority of one. The collector's dialogue is an original adaptation of the essay's questions, not a claim to a documented conversation.
-3. **The jail / freedom:** Cards `c07`–`c09` distinguish moral integrity, freedom of thought, and coercive strength. The voice of the state is a symbolic opponent, not a historical official quoted from records.
-4. **Dawn / what comes next:** Cards `c10`–`c12` examine the practical demand for better government, neighborly duty, consent, and the unfinished work of respecting the individual. The dawn visitor is fictional.
+3. **The jail / freedom:** Cards `c07`–`c09` distinguish moral integrity, freedom of thought, and coercive strength. Jonas, the fictional jailer beyond the cell bars, presents the state’s arguments; he is not a historical official quoted from records.
+4. **Dawn / what comes next:** Cards `c10`–`c12` examine the practical demand for better government, neighborly duty, consent, and the unfinished work of respecting the individual. The morning reader is fictional.
 
 Scenery, object placement, routes, light, physical encounters, debate ordering, and dramatic transitions are original illustrations. The game rearranges the essay's ideas into an evening-to-morning arc. It does not claim the essay was written in a single night, that its full argument was spoken in jail, or that a particular tax dollar was traced to a specific expenditure. Thoreau explicitly declines that latter claim in paragraph 40.
 
@@ -35,6 +35,7 @@ The twelve physical encounters use short button presses, holds, and conversation
 
 - **12 evidence cards** quote exact text from the bundled source. Each card has a distinct interpretive purpose and a paragraph reference.
 - **Four debates**, each with **three rounds**, require both a defensible claim and evidence that directly supports it. A correct claim is scored for accurately representing the text, not for matching a player's personal political views. Wrong claims receive specific explanations rather than generic failure messages.
+- Debates begin by approaching their characters in the 3D scene. Character-anchored subtitles, gestures, replies, and a compact quotation notebook keep the world visible. Player replies are short conversational paraphrases mapped to the same canonical claims and scoring. Rejoinders and farewells are original adaptation dialogue; the supporting quotations remain exact source text. Stepping away preserves the current exchange, and reading explanations remain available without replacing the conversation with a quiz screen.
 - **72 reading-check questions** cover eight categories, with nine questions in each: government and conscience; majority and voting; complicity and action; taxes and resistance; prison and perspective; close-reading details; rhetoric and vocabulary; reform and the individual.
 - Each question has four options, one correct answer, a substantive explanation, and an explanation aligned with every individual option. Correct answer positions rotate across the bank. In-game selection may also shuffle questions or answers without changing their meaning.
 - Questions preserve uncertainty where the text does: the cellmate denies burning the barn and Thoreau conjectures; the unnamed person who paid the poll tax remains unnamed in questions about the essay; one night of confinement is distinguished from six years of refusal and the cellmate's months awaiting trial.

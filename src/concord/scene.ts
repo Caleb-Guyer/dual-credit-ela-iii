@@ -1,6 +1,12 @@
 import * as T from 'three';
 import { paintTexture, type PaintedSurface } from './paint';
-import { Townsperson, jointBetween, type CharacterRole } from './characters';
+import {
+  Townsperson,
+  jointBetween,
+  type CharacterRole,
+  type ConversationPhase,
+} from './characters';
+import { conversationActors } from './conversation';
 import {
   createMotion,
   setMotionPose,
@@ -29,6 +35,12 @@ type State = {
   posture?: 'stand' | 'sit' | 'window';
 };
 type Batch = { geometry: T.BufferGeometry; material: T.Material; matrices: T.Matrix4[] };
+export type ConversationPose = {
+  actorId: string;
+  phase: ConversationPhase;
+  beat: number;
+  speaking: boolean;
+};
 
 /** Original scenery and fictional encounter staging, not a reconstruction of historic Concord. */
 export class ConcordWorld {
@@ -60,6 +72,11 @@ export class ConcordWorld {
   private dummy = new T.Object3D();
   private textures: T.Texture[] = [];
   private people: Townsperson[] = [];
+  private conversationPeople = new Map<string, Townsperson>();
+  private conversation: ConversationPose | null = null;
+  private conversationStarted = 0;
+  private beforeConversation: { yaw: number; pitch: number } | null = null;
+  private conversationAnchor = new T.Vector3();
   private characterColliders = new Map<Townsperson, Collider>();
   private interactions = new Map<
     string,
@@ -630,7 +647,16 @@ export class ConcordWorld {
     direction: number,
     seed: number,
     bonnet = false,
+    actorId?: string,
   ) {
+    const actor = actorId
+      ? conversationActors.find((candidate) => candidate.id === actorId)
+      : undefined;
+    if (actor) {
+      name = actor.name;
+      x = actor.x;
+      z = actor.z;
+    }
     const person = new Townsperson(
       {
         name,
@@ -651,6 +677,10 @@ export class ConcordWorld {
     const collider = { x, z, w: 0.18, d: 0.18 };
     this.boxes.push(collider);
     this.characterColliders.set(person, collider);
+    if (actorId) {
+      person.group.userData.actorId = actorId;
+      this.conversationPeople.set(actorId, person);
+    }
     return person;
   }
 
@@ -739,6 +769,59 @@ export class ConcordWorld {
 
   drainFootsteps() {
     return takeMotionSteps(this.motion);
+  }
+
+  setConversation(pose: ConversationPose) {
+    const actor = conversationActors.find((candidate) => candidate.id === pose.actorId);
+    if (actor?.act !== this.act || !this.conversationPeople.has(pose.actorId)) return;
+    if (!this.conversation) {
+      this.beforeConversation = { yaw: this.yaw, pitch: this.pitch };
+      this.returnView = null;
+      this.keys.clear();
+    }
+    if (
+      this.conversation?.actorId !== pose.actorId ||
+      this.conversation?.phase !== pose.phase ||
+      this.conversation?.beat !== pose.beat
+    )
+      this.conversationStarted = this.time;
+    this.conversation = { ...pose };
+  }
+
+  clearConversation() {
+    if (!this.conversation) return;
+    this.conversation = null;
+    this.returnView = this.beforeConversation;
+    this.beforeConversation = null;
+  }
+
+  getConversationAnchor() {
+    const actor = this.conversation
+      ? this.conversationPeople.get(this.conversation.actorId)
+      : undefined;
+    if (!actor) return { x: 0, y: 0, visible: false, clearance: 42 };
+    actor.head.updateWorldMatrix(true, false);
+    this.camera.updateMatrixWorld();
+    this.conversationAnchor.set(0, 0.06, 0.14).applyMatrix4(actor.head.matrixWorld);
+    const rect = this.canvas.getBoundingClientRect();
+    const distance = Math.max(0.3, this.camera.position.distanceTo(this.conversationAnchor));
+    const focal = rect.height / (2 * Math.tan(T.MathUtils.degToRad(this.camera.fov / 2)));
+    const clearance = Math.max(42, Math.min(rect.width * 0.45, (0.3 * focal) / distance));
+    this.conversationAnchor.project(this.camera);
+    const x = (this.conversationAnchor.x * 0.5 + 0.5) * rect.width;
+    const y = (0.5 - this.conversationAnchor.y * 0.5) * rect.height;
+    return {
+      x,
+      y,
+      clearance,
+      visible:
+        this.conversationAnchor.z > -1 &&
+        this.conversationAnchor.z < 1 &&
+        x >= 0 &&
+        x <= rect.width &&
+        y >= 0 &&
+        y <= rect.height,
+    };
   }
 
   private ledger() {
@@ -1274,7 +1357,7 @@ export class ConcordWorld {
       }
     });
     this.person('Ruth, a neighbor', 'neighbor', 3.95, -4.75, '#78604a', -0.1, 2, true);
-    this.person('Elias, a neighbor', 'neighbor', 4.12, -3.2, '#536b60', -2.85, 1);
+    this.person('Elias, a neighbor', 'neighbor', 4.12, -3.2, '#536b60', -2.85, 1, false, 'citizen');
     this.person('Samuel, the printer', 'printer', -5.65, -13.2, '#6b7564', 0.8, 0);
     const printPage = this.table(-4.9, -13);
     // The printer's small hand press has its own silhouette and a sheet under the platen.
@@ -1310,7 +1393,17 @@ export class ConcordWorld {
       printPage.visible = !collected || active;
     });
     const taxBill = this.table(3.7, -9.2);
-    this.person('Mr. Lowell, the collector', 'collector', 4.85, -9.8, '#4f5a68', -0.65, 3);
+    this.person(
+      'Mr. Lowell, the collector',
+      'collector',
+      4.85,
+      -9.8,
+      '#4f5a68',
+      -0.65,
+      3,
+      false,
+      'collector',
+    );
     this.person('Mrs. Bell, the merchant', 'merchant', -5.05, 8.75, '#795a48', 0.9, 2);
     this.person('Jonas, the jailer', 'jailer', 5.15, -20.3, '#6a6c5d', -0.6, 1);
     const taxCoin = this.prop(
@@ -1352,7 +1445,7 @@ export class ConcordWorld {
     this.jailDoor();
     if (this.act === 3) {
       this.morningPaper();
-      this.person('A morning reader', 'walker', 2.5, 11.6, '#7d7157', 0, 4);
+      this.person('A morning reader', 'walker', 2.5, 11.6, '#7d7157', 0, 4, false, 'visitor');
     }
     // A proper slatted bench by the water, not a featureless block.
     const { x: bx, z: bz } = RIVER_BENCH;
@@ -1586,6 +1679,15 @@ export class ConcordWorld {
     for (const y of [0.45, 2, 3.8]) this.box('#3c4541', 0, y, 5.3, 8.5, 0.075, 0.075);
     this.box('#5d5c49', 0.15, 1.7, 5.18, 0.2, 0.3, 0.07);
     this.add('sphere', '#182a2d', 0.15, 1.72, 5.14, 0.02, 0.03, 0.015);
+    // Jonas stays on the passage side of the bars. The player answers from inside the cell.
+    this.box('#777365', 0, -0.2, 7.3, 9, 0.4, 3.7, 0, '', 'stone');
+    this.ground('stone', '#8e8b75', 0, 7.3, 9, 3.7, 4);
+    this.box('#777e6c', -4.5, 2.25, 7.4, 0.5, 4.5, 3.7, 0, '', 'stone');
+    this.box('#777e6c', 4.5, 2.25, 7.4, 0.5, 4.5, 3.7, 0, '', 'stone');
+    this.box('#697463', 0, 2.25, 9.2, 9, 4.5, 0.35, 0, '', 'stone');
+    this.box('#4a4d40', 0, 4.55, 7.3, 9, 0.25, 4, 0, '', 'wood');
+    this.lantern(1.6, 6.7, false);
+    this.person('Jonas, the jailer', 'jailer', 0, 6.5, '#7e7760', Math.PI, 1, false, 'jailer');
     this.lantern(-0.5, -4.7, false);
     this.add('sphere', '#a19478', 3.1, 0.29, 3.7, 0.22, 0.28, 0.2);
     this.add('cylinder', '#a19478', 3.1, 0.54, 3.7, 0.09, 0.19, 0.09);
@@ -1690,7 +1792,7 @@ export class ConcordWorld {
   }
 
   look(dx: number, dy: number) {
-    if (this.getState().paused || this.preview) return;
+    if (this.getState().paused || this.preview || this.conversation) return;
     this.returnView = null;
     this.yaw -= dx * 0.004;
     this.pitch = T.MathUtils.clamp(this.pitch - dy * 0.003, -1.05, 1.05);
@@ -1742,7 +1844,7 @@ export class ConcordWorld {
           });
         this.motion.yaw = this.yaw;
         this.motion.pitch = this.pitch;
-        if (this.returnView && !this.interaction) {
+        if (this.returnView && !this.interaction && !this.conversation) {
           if (['KeyQ', 'KeyR', 'PageUp', 'PageDown'].some((key) => this.keys.has(key)))
             this.returnView = null;
           else {
@@ -1800,6 +1902,36 @@ export class ConcordWorld {
               (1 - Math.exp(-dt * 3.5));
           }
         }
+        if (this.conversation && state.movementLocked) {
+          const person = this.conversationPeople.get(this.conversation.actorId);
+          if (person) {
+            const target = person.group.position;
+            const targetYaw = Math.atan2(
+              this.camera.position.x - target.x,
+              this.camera.position.z - target.z,
+            );
+            const angle = Math.atan2(
+              Math.sin(targetYaw - this.motion.yaw),
+              Math.cos(targetYaw - this.motion.yaw),
+            );
+            this.motion.yaw += angle * (1 - Math.exp(-dt * 4.2));
+            const distance = Math.max(
+              0.7,
+              Math.hypot(this.camera.position.x - target.x, this.camera.position.z - target.z),
+            );
+            // Frame the actual face at any approach distance, rather than aiming at the waist.
+            // Portrait screens leave room for the speech caption above the character.
+            const portrait = this.camera.aspect < 0.85;
+            const targetPitch =
+              Math.atan2(1.65 - this.motion.eyeHeight, distance) + (portrait ? -0.04 : -0.18);
+            this.motion.pitch = T.MathUtils.damp(
+              this.motion.pitch,
+              T.MathUtils.clamp(targetPitch, -0.9, 0.35),
+              4.2,
+              dt,
+            );
+          }
+        }
         updateMotion(
           this.motion,
           {
@@ -1853,7 +1985,11 @@ export class ConcordWorld {
       }
     }
     for (const o of this.objectives) {
-      o.group.visible = !state.collected.includes(o.point.id) && !this.preview && !this.interaction;
+      o.group.visible =
+        !state.collected.includes(o.point.id) &&
+        !this.preview &&
+        !this.interaction &&
+        !this.conversation;
       o.crystal.quaternion.copy(this.camera.quaternion);
     }
     if (this.interaction)
@@ -1866,6 +2002,9 @@ export class ConcordWorld {
         state.reduced,
         this.interaction?.id,
         this.shownProgress,
+        this.conversation && this.conversationPeople.get(this.conversation.actorId) === person
+          ? { ...this.conversation, elapsed: this.time - this.conversationStarted }
+          : undefined,
       );
       const collider = this.characterColliders.get(person)!;
       collider.x = person.group.position.x;
