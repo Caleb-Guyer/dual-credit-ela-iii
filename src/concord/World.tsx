@@ -232,8 +232,14 @@ export default function World(props: WorldProps) {
     const lock = () => setFreeLook(document.pointerLockElement === canvas);
     let frame = 0,
       last = performance.now();
+    const visibility = () => {
+      last = performance.now();
+      if (document.hidden) clear();
+    };
     const tick = (now: number) => {
-      const dt = Math.min(0.05, (now - last) / 1000);
+      // A one-second gesture takes one second even when software graphics miss frames.
+      // Visibility and pause events release the hold rather than banking hidden time.
+      const dt = Math.max(0, (now - last) / 1000);
       last = now;
       if (!document.hidden && !propsRef.current.paused) {
         if (interactionRef.current?.holding) act({ type: 'tick' }, dt);
@@ -245,6 +251,7 @@ export default function World(props: WorldProps) {
     frame = requestAnimationFrame(tick);
     document.addEventListener('mousemove', mouse);
     document.addEventListener('pointerlockchange', lock);
+    document.addEventListener('visibilitychange', visibility);
     window.addEventListener('keydown', down);
     window.addEventListener('keyup', up);
     window.addEventListener('blur', clear);
@@ -255,6 +262,7 @@ export default function World(props: WorldProps) {
       window.removeEventListener('blur', clear);
       document.removeEventListener('mousemove', mouse);
       document.removeEventListener('pointerlockchange', lock);
+      document.removeEventListener('visibilitychange', visibility);
       cancelAnimationFrame(frame);
       if (document.pointerLockElement === canvas) void document.exitPointerLock();
       interactionRef.current = null;

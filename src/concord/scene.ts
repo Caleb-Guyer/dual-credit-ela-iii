@@ -55,6 +55,8 @@ export class ConcordWorld {
   private previousNear: string | null = null;
   private motion = createMotion({ x: 0, z: 0, yaw: 0 });
   private software = false;
+  private qualityTime = 0;
+  private qualityFrames = 0;
   private dummy = new T.Object3D();
   private textures: T.Texture[] = [];
   private people: Townsperson[] = [];
@@ -1703,7 +1705,18 @@ export class ConcordWorld {
     }
     // Software renderers need fewer frames; physics always uses elapsed time.
     if (this.software && now - this.last < 32) return;
-    const dt = Math.min(0.2, this.last ? (now - this.last) / 1000 : 0.016);
+    const elapsed = this.last ? (now - this.last) / 1000 : 0.016;
+    const dt = Math.min(0.2, elapsed);
+    if (this.software) {
+      this.qualityTime += elapsed;
+      this.qualityFrames++;
+      if (this.qualityTime >= 1.5) {
+        const ratio = this.renderer.getPixelRatio();
+        if (this.qualityFrames / this.qualityTime < 22 && ratio > 0.36)
+          this.renderer.setPixelRatio(Math.max(0.35, ratio - 0.1));
+        this.qualityTime = this.qualityFrames = 0;
+      }
+    }
     this.last = now;
     const state = this.getState();
     this.frameDt = state.paused ? 0 : dt;

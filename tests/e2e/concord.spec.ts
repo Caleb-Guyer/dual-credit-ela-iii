@@ -78,6 +78,8 @@ async function observeWorld(page: Page) {
             .map((entry) => entry.name),
         ),
       ];
+      // Playwright's controlled clock replaces the resource timing timeline.
+      if (!paths.length) paths.push(new URL('/src/concord/scene.ts', location.href).href);
       for (const path of paths) {
         const module = await import(/* @vite-ignore */ path);
         const original = module.ConcordWorld.prototype.look;
@@ -280,6 +282,54 @@ test('Concord explores real 3D, collects evidence, opens source context and resu
   await expect(page.getByRole('button', { name: 'Continue', exact: true })).toBeVisible();
   expect((await saved(page)).collected).toEqual(['c01']);
   expect(errors).toEqual([]);
+});
+
+test('a one-second hold follows elapsed time at four frames per second and cancels on blur', async ({
+  page,
+}) => {
+  const initialTime = Date.parse('2026-10-24T12:00:00.000Z');
+  await page.clock.install({ time: initialTime });
+  await setup(page);
+  await enter(page);
+  await observeWorld(page);
+  await approachObject(page, 'c01');
+  const region = page.getByRole('dialog', { name: interactionDefs.c01.title, exact: true });
+  const card = evidence.find((item) => item.id === 'c01')!;
+  // Jump beyond loading time and pause. Each fastForward fires animation callbacks once,
+  // reproducing a slow renderer without tying this regression to the test machine's GPU.
+  await page.clock.pauseAt(initialTime + 300_000);
+  await page.keyboard.down('e');
+  for (let frame = 0; frame < 3; frame++) await page.clock.fastForward(250);
+  const partial = Number(await region.getByRole('progressbar').getAttribute('aria-valuenow'));
+  expect(partial).toBeGreaterThanOrEqual(65);
+  expect(partial).toBeLessThan(90);
+  await expect(region.locator('.cn-interaction-prompt')).toHaveText(
+    interactionDefs.c01.steps[0].prompt,
+  );
+  expect((await saved(page)).collected).not.toContain('c01');
+  await expect(page.getByRole('dialog', { name: card.title, exact: true })).toHaveCount(0);
+  await page.evaluate(() => window.dispatchEvent(new Event('blur')));
+  await page.keyboard.up('e');
+  await page.clock.fastForward(1500);
+  await expect(region.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '0');
+  await expect(region.locator('.cn-interaction-prompt')).toHaveText(
+    interactionDefs.c01.steps[0].prompt,
+  );
+  expect((await saved(page)).collected).not.toContain('c01');
+  await page.keyboard.down('e');
+  for (let frame = 0; frame < 5; frame++) await page.clock.fastForward(250);
+  await page.keyboard.up('e');
+  await expect(region.locator('.cn-interaction-prompt')).toHaveText(
+    interactionDefs.c01.steps[1].prompt,
+  );
+  expect((await saved(page)).collected).not.toContain('c01');
+  await page.clock.resume();
+  await region.getByRole('button', { name: 'Unfold the notice', exact: false }).click();
+  await expect(region).toContainText(interactionDefs.c01.completion);
+  expect((await saved(page)).collected).not.toContain('c01');
+  await region.getByRole('button', { name: 'Read Thoreau’s passage', exact: false }).click();
+  await expect(page.getByRole('dialog', { name: card.title, exact: true })).toBeVisible();
+  await expect.poll(async () => (await saved(page)).collected).toContain('c01');
 });
 
 test('walking accelerates, brakes, crosses the bridge to both banks and slides along its railing', async ({
