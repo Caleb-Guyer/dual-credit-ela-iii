@@ -530,6 +530,123 @@
   border-color: #889671;
   font-size: 12px;
 }
+.cn-town-affordance {
+  position: absolute;
+  left: 50%;
+  bottom: 70px;
+  transform: translateX(-50%);
+  max-width: calc(100% - 40px);
+  width: max-content;
+  z-index: 3;
+  pointer-events: auto;
+}
+.cn-town-action {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 48px;
+  max-width: 100%;
+  padding: 12px 18px;
+  background: #eee5d3ed;
+  color: #344b35 !important;
+  border: 1px solid #b5bb9970;
+  box-shadow: 0 2px 15px #182c1d30;
+  font-size: 17px;
+  text-align: left;
+}
+.cn-town-action kbd {
+  color: #667252;
+  border-color: #889671;
+  font-size: 11px;
+}
+.cn-town-action small {
+  font-size: 11px;
+  color: #647153;
+  white-space: nowrap;
+}
+.cn-town-action:disabled {
+  opacity: 0.8;
+  cursor: default;
+}
+.cn-town-progress {
+  position: absolute;
+  left: 1px;
+  right: 1px;
+  bottom: 1px;
+  height: 3px;
+  background: linear-gradient(
+    to right,
+    #74805b var(--town-progress),
+    transparent var(--town-progress)
+  );
+  pointer-events: none;
+}
+.cn-town-working,
+.cn-town-notice {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 9px);
+  transform: translateX(-50%);
+  width: min(480px, 86vw);
+  padding: 9px 13px;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: #193126eb;
+  color: #eee5cf;
+  font-size: 14px;
+  line-height: 1.4;
+}
+.cn-town-working > span {
+  flex: 1;
+}
+.cn-town-working button {
+  border: 1px solid #d6d7b848;
+  background: none;
+  color: inherit;
+  padding: 5px 8px;
+  font-size: 11px;
+  white-space: nowrap;
+}
+.cn-town-notice {
+  display: block;
+}
+.cn-game-shell:has(.cn-town-affordance) .cn-ready-action {
+  bottom: 146px;
+}
+.cn-game-shell:has(.cn-town-notice) .cn-ready-action {
+  bottom: 220px;
+}
+.cn-game-shell:has(.cn-town-working) .cn-chapter-caption {
+  display: none;
+}
+@media (max-width: 700px) {
+  .cn-town-affordance {
+    bottom: 142px;
+    max-width: calc(100% - 26px);
+  }
+  .cn-town-action {
+    font-size: 15px;
+    gap: 9px;
+    padding: 12px 14px;
+  }
+  .cn-town-action kbd,
+  .cn-town-working kbd {
+    display: none;
+  }
+  .cn-town-working,
+  .cn-town-notice {
+    font-size: 13px;
+    width: min(410px, 90vw);
+  }
+  .cn-game-shell:has(.cn-town-affordance) .cn-ready-action {
+    bottom: 218px;
+  }
+  .cn-game-shell:has(.cn-town-notice) .cn-ready-action {
+    bottom: 300px;
+  }
+}
 .cn-directions-toggle {
   position: absolute;
   right: 25px;

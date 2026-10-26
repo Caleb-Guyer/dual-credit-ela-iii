@@ -3,6 +3,20 @@ import { ConcordWorld, hotspots, type Hotspot, type ConversationPose } from './s
 import { conversationActors } from './conversation';
 import { clueBearing, nearestClue, spawns } from './navigation';
 import Frontispiece from './Frontispiece';
+import TownControls from './TownControls';
+import {
+  advanceTownInteraction,
+  applyTownInteraction,
+  freshTownMemory,
+  nearestTownActivity,
+  startTownInteraction,
+  townActivityDefs,
+  townInteractionCompletion,
+  type TownId,
+  type TownInteraction,
+  type TownMemory,
+} from './exploration';
+import { townGateSweepContains } from './town-layout';
 import {
   advanceInteraction,
   interactionDefs,
@@ -25,6 +39,8 @@ export type WorldProps = {
   onSound?: (cue: string, surface?: 'road' | 'wood' | 'stone', speed?: number) => void;
   onPosition?: (x: number, z: number, yaw: number, pitch?: number) => void;
   initialPose?: { x: number; z: number; yaw: number; pitch?: number };
+  initialTownMemory?: TownMemory;
+  onTownMemory?: (memory: TownMemory) => void;
   preview?: boolean;
   talkAvailable?: boolean;
   talkResuming?: boolean;
@@ -55,9 +71,103 @@ export default function World(props: WorldProps) {
   const actionPanel = useRef<HTMLElement>(null);
   const [freeLook, setFreeLook] = useState(false);
   const wasTalking = useRef(false);
+  const townMemory = useRef({ ...(props.initialTownMemory ?? freshTownMemory()) });
+  const [townSession, setTownSession] = useState<TownInteraction | null>(null);
+  const townRef = useRef<TownInteraction | null>(null);
+  const townCooldowns = useRef<Partial<Record<TownId, number>>>({});
+  const [townNotice, setTownNotice] = useState<string | null>(null);
+  const townNoticeUntil = useRef(0);
+  const townWorking = () => !!townRef.current && !townRef.current.complete;
+  function nearbyTownActivity() {
+    const world = worldRef.current;
+    if (
+      !world ||
+      propsRef.current.paused ||
+      propsRef.current.conversation ||
+      interactionRef.current
+    )
+      return null;
+    return nearestTownActivity(propsRef.current.act, {
+      x: world.camera.position.x,
+      z: world.camera.position.z,
+      y: world.camera.position.y,
+      yaw: world.yaw,
+      pitch: world.pitch,
+    });
+  }
+  function endTown() {
+    if (!townRef.current && !townNoticeUntil.current) return;
+    const wasWorking = townWorking();
+    townRef.current = null;
+    setTownSession(null);
+    setTownNotice(null);
+    townNoticeUntil.current = 0;
+    worldRef.current?.clearTownInteraction();
+    if (wasWorking) propsRef.current.onInteractionActive?.(false);
+    if (
+      wasWorking ||
+      (document.activeElement as HTMLElement | null)?.closest('.cn-town-affordance')
+    )
+      canvasRef.current?.focus({ preventScroll: true });
+  }
+  function updateTown(next: TownInteraction) {
+    const previous = townRef.current;
+    townRef.current = next;
+    setTownSession(next);
+    worldRef.current?.setTownInteraction({
+      id: next.id,
+      progress: next.progress,
+      open: next.opening,
+    });
+    if (next.complete && !previous?.complete) {
+      townMemory.current = applyTownInteraction(townMemory.current, next);
+      propsRef.current.onTownMemory?.(townMemory.current);
+      const now = performance.now();
+      townCooldowns.current[next.id] =
+        now + (next.id === 'bell' ? townActivityDefs.bell.duration * 1000 : 350);
+      setTownNotice(townInteractionCompletion(next));
+      townNoticeUntil.current = now + 2200;
+      propsRef.current.onSound?.(`town:${next.id}:finish`);
+      propsRef.current.onInteractionActive?.(false);
+      worldRef.current?.clearTownInteraction();
+    }
+  }
+  function beginTown(id: TownId, holding = true) {
+    if (townWorking() || propsRef.current.preview || nearbyTownActivity()?.id !== id) return;
+    if (performance.now() < (townCooldowns.current[id] ?? 0)) return;
+    const point = worldRef.current!.camera.position;
+    if (id === 'gate' && townMemory.current.gate && townGateSweepContains(point.x, point.z)) {
+      setTownNotice('Step clear of the gate before closing it.');
+      townNoticeUntil.current = performance.now() + 2200;
+      return;
+    }
+    if (document.pointerLockElement) void document.exitPointerLock();
+    worldRef.current?.keys.clear();
+    drag.current = null;
+    setTownNotice(null);
+    townNoticeUntil.current = 0;
+    const next = startTownInteraction(id, townMemory.current);
+    updateTown(next);
+    propsRef.current.onInteractionActive?.(true);
+    if (townActivityDefs[id].kind === 'press')
+      updateTown(advanceTownInteraction(next, { type: 'press' }));
+    else {
+      propsRef.current.onSound?.(`town:${id}:start`);
+      updateTown(advanceTownInteraction(next, { type: 'hold', pressed: holding }));
+    }
+  }
+  function releaseTown() {
+    if (townWorking()) endTown();
+  }
   function withinTalkingDistance() {
     const current = propsRef.current;
-    if (!current.talkAvailable || current.paused || interactionRef.current || current.conversation)
+    if (
+      !current.talkAvailable ||
+      current.paused ||
+      interactionRef.current ||
+      current.conversation ||
+      townWorking()
+    )
       return false;
     const actor = conversationActors[current.act];
     const target = actor.id === 'jailer' ? actor.approach : actor;
@@ -66,6 +176,7 @@ export default function World(props: WorldProps) {
   }
   function beginTalking() {
     if (!withinTalkingDistance() && !error) return;
+    endTown();
     if (document.pointerLockElement) void document.exitPointerLock();
     worldRef.current?.keys.clear();
     drag.current = null;
@@ -97,6 +208,7 @@ export default function World(props: WorldProps) {
   }
   function beginInteraction(id: string) {
     if (propsRef.current.paused || interactionRef.current) return;
+    endTown();
     if (document.pointerLockElement) void document.exitPointerLock();
     worldRef.current?.keys.clear();
     drag.current = null;
@@ -122,6 +234,7 @@ export default function World(props: WorldProps) {
     setPosition(spawns[props.act] ?? spawns[0]);
     const lost = (event: Event) => {
       event.preventDefault();
+      endTown();
       setError(true);
       propsRef.current.onReady?.(false);
     };
@@ -133,7 +246,8 @@ export default function World(props: WorldProps) {
         !!props.preview,
         () => ({
           ...propsRef.current,
-          movementLocked: !!interactionRef.current || !!propsRef.current.conversation,
+          movementLocked:
+            !!interactionRef.current || !!propsRef.current.conversation || townWorking(),
           posture: interactionRef.current
             ? (interactionDefs[interactionRef.current.id].steps[interactionRef.current.step]
                 .posture ?? 'stand')
@@ -148,6 +262,7 @@ export default function World(props: WorldProps) {
           propsRef.current.onPosition?.(x, z, yaw, worldRef.current?.pitch ?? 0);
         },
       );
+      worldRef.current.setTownOpen(townMemory.current);
       const pose = propsRef.current.initialPose;
       if (pose && !props.preview) {
         worldRef.current.camera.position.set(pose.x, 1.68, pose.z);
@@ -183,6 +298,52 @@ export default function World(props: WorldProps) {
         }
         return;
       }
+      const optional = townRef.current;
+      if (optional && !optional.complete) {
+        if (e.code === 'Escape') {
+          e.preventDefault();
+          endTown();
+        } else if (['KeyE', 'Space'].includes(e.code)) {
+          e.preventDefault();
+          if (!e.repeat)
+            updateTown(advanceTownInteraction(optional, { type: 'hold', pressed: true }));
+        } else if (
+          [
+            'KeyW',
+            'KeyA',
+            'KeyS',
+            'KeyD',
+            'ArrowUp',
+            'ArrowDown',
+            'ArrowLeft',
+            'ArrowRight',
+            'KeyQ',
+            'KeyR',
+            'PageUp',
+            'PageDown',
+          ].includes(e.code)
+        ) {
+          e.preventDefault();
+          endTown();
+          worldRef.current?.keys.add(e.code);
+        }
+        return;
+      }
+      if (e.code === 'Escape' && (optional || townNoticeUntil.current)) endTown();
+      if (
+        optional?.complete &&
+        [
+          'KeyW',
+          'KeyA',
+          'KeyS',
+          'KeyD',
+          'ArrowUp',
+          'ArrowDown',
+          'ArrowLeft',
+          'ArrowRight',
+        ].includes(e.code)
+      )
+        endTown();
       const active = interactionRef.current;
       if (active) {
         if (e.code === 'Tab') {
@@ -226,6 +387,16 @@ export default function World(props: WorldProps) {
         }
         return;
       }
+      const townObject = nearbyTownActivity();
+      if (
+        (e.code === 'KeyE' ||
+          (e.code === 'Space' && (e.target as HTMLElement).closest('.cn-town-action'))) &&
+        townObject
+      ) {
+        e.preventDefault();
+        if (!e.repeat) beginTown(townObject.id, true);
+        return;
+      }
       if (e.code === 'KeyH' && !e.repeat) {
         e.preventDefault();
         setDirections((v) => !v);
@@ -258,11 +429,15 @@ export default function World(props: WorldProps) {
     };
     const up = (e: KeyboardEvent) => {
         worldRef.current?.keys.delete(e.code);
-        if (['KeyE', 'Space'].includes(e.code)) act({ type: 'hold', pressed: false });
+        if (['KeyE', 'Space'].includes(e.code)) {
+          act({ type: 'hold', pressed: false });
+          releaseTown();
+        }
       },
       clear = () => {
         worldRef.current?.keys.clear();
         act({ type: 'hold', pressed: false });
+        releaseTown();
         drag.current = null;
       };
     const mouse = (e: MouseEvent) => {
@@ -270,6 +445,7 @@ export default function World(props: WorldProps) {
         document.pointerLockElement === canvas &&
         !propsRef.current.paused &&
         !interactionRef.current &&
+        !townWorking() &&
         !propsRef.current.conversation
       )
         worldRef.current?.look(e.movementX, e.movementY);
@@ -294,6 +470,17 @@ export default function World(props: WorldProps) {
       }
       if (!document.hidden && !propsRef.current.paused) {
         if (interactionRef.current?.holding) act({ type: 'tick' }, dt);
+        const town = townRef.current;
+        if (town?.holding && !town.complete)
+          updateTown(advanceTownInteraction(town, { type: 'tick' }, dt));
+        const finished = townRef.current;
+        if (finished?.complete) {
+          const point = worldRef.current?.camera.position;
+          const object = townActivityDefs[finished.id];
+          if (point && Math.hypot(point.x - object.x, point.z - object.z) > object.reach + 0.4)
+            endTown();
+        }
+        if (townNoticeUntil.current && now >= townNoticeUntil.current) endTown();
         for (const step of worldRef.current?.drainFootsteps() ?? [])
           propsRef.current.onSound?.('footstep', step.surface, step.speed);
       } else worldRef.current?.drainFootsteps();
@@ -317,6 +504,7 @@ export default function World(props: WorldProps) {
       cancelAnimationFrame(frame);
       if (document.pointerLockElement === canvas) void document.exitPointerLock();
       interactionRef.current = null;
+      townRef.current = null;
       propsRef.current.onInteractionActive?.(false);
       const world = worldRef.current;
       if (world && !props.preview)
@@ -333,6 +521,7 @@ export default function World(props: WorldProps) {
   useEffect(() => {
     const world = worldRef.current;
     if (props.conversation) {
+      if (townRef.current) endTown();
       world?.setConversation(props.conversation);
       drag.current = null;
       if (document.pointerLockElement) void document.exitPointerLock();
@@ -350,6 +539,7 @@ export default function World(props: WorldProps) {
   }, [props.conversation]);
   useEffect(() => {
     if (props.paused) {
+      releaseTown();
       worldRef.current?.keys.clear();
       drag.current = null;
       if (document.pointerLockElement === canvasRef.current) void document.exitPointerLock();
@@ -378,6 +568,15 @@ export default function World(props: WorldProps) {
     else actionPanel.current?.focus({ preventScroll: true });
   }, [interaction?.step, interaction?.complete]);
   const actor = conversationActors[props.act];
+  const townObject = townSession
+    ? townActivityDefs[townSession.id]
+    : nearestTownActivity(props.act, {
+        x: position.x,
+        z: position.z,
+        y: worldRef.current?.camera.position.y ?? 1.68,
+        yaw: position.yaw,
+        pitch: worldRef.current?.pitch ?? -0.03,
+      });
   const talkTarget = actor.id === 'jailer' ? actor.approach : actor;
   const nearTalk =
     props.talkAvailable && Math.hypot(position.x - talkTarget.x, position.z - talkTarget.z) < 3.2;
@@ -424,6 +623,7 @@ export default function World(props: WorldProps) {
           cursor: props.preview ? 'default' : freeLook ? 'none' : 'grab',
         }}
         onPointerDown={(e) => {
+          if (townWorking()) endTown();
           if (
             props.paused ||
             props.preview ||
@@ -486,7 +686,7 @@ export default function World(props: WorldProps) {
       )}
       {!props.preview && !props.paused && !error && !props.conversation && (
         <>
-          {directions && tracker && !interaction && (
+          {directions && tracker && !interaction && !townWorking() && (
             <div
               className="cn-tracker"
               role="status"
@@ -508,12 +708,25 @@ export default function World(props: WorldProps) {
               </div>
             </div>
           )}
-          {nearTalk && !interaction ? (
+          {townObject && !interaction && (
+            <TownControls
+              activity={townObject}
+              session={townSession}
+              memory={townMemory.current}
+              notice={townNotice}
+              cooling={performance.now() < (townCooldowns.current[townObject.id] ?? 0)}
+              onBegin={(holding) => beginTown(townObject.id, holding)}
+              onRelease={releaseTown}
+              onCancel={endTown}
+            />
+          )}
+          {!townObject && nearTalk && !interaction ? (
             <button className="cn-inspect cn-talk" onClick={beginTalking}>
               <kbd>E</kbd>
               {props.talkResuming ? 'Resume conversation' : `Talk to ${actor.name}`}
             </button>
           ) : (
+            !townObject &&
             near &&
             !interaction && (
               <button className="cn-inspect" onClick={() => beginInteraction(near.id)}>
@@ -523,7 +736,7 @@ export default function World(props: WorldProps) {
               </button>
             )
           )}
-          {tracker && !interaction && (
+          {tracker && !interaction && !townWorking() && (
             <button
               className="cn-directions-toggle"
               aria-expanded={directions}
@@ -532,7 +745,7 @@ export default function World(props: WorldProps) {
               {directions ? 'Hide directions' : 'Directions'} <kbd>H</kbd>
             </button>
           )}
-          {!interaction && (
+          {!interaction && !townWorking() && (
             <div className="cn-world-controls" aria-label="Movement controls">
               {[
                 ['KeyW', '↑', 'Walk forward', 2],
@@ -558,7 +771,7 @@ export default function World(props: WorldProps) {
               ))}
             </div>
           )}
-          {!interaction && (
+          {!interaction && !townWorking() && (
             <button
               className="cn-look-toggle"
               onClick={() => {

@@ -1,3 +1,5 @@
+import { townColliders, townGateCollider } from './town-layout';
+
 export type Hotspot = { id: string; act: number; label: string; x: number; z: number };
 export const RIVER_BENCH = { x: 14, z: 22.4 } as const;
 export const hotspots: Hotspot[] = [
@@ -21,7 +23,7 @@ export const spawns = [
   { x: 0, z: 3.7, yaw: 0.25 },
   { x: 0, z: 16.5, yaw: 0 },
 ];
-export type Collider = { x: number; z: number; w: number; d: number };
+export type Collider = { x: number; z: number; w: number; d: number; id?: string };
 export const INSPECT_DISTANCE = 3.25;
 
 export function sceneryRandom(seed: number) {
@@ -42,7 +44,7 @@ export function treePlacement(index: number) {
 }
 
 /** The renderer and collision checks share this layout, so no GPU is needed to audit routes. */
-export function navigationObstacles(act: number): Collider[] {
+export function navigationObstacles(act: number, gateOpen = false): Collider[] {
   if (act === 2)
     return [
       { x: -4.5, z: 0, w: 0.5, d: 12 },
@@ -72,7 +74,7 @@ export function navigationObstacles(act: number): Collider[] {
       d: 0.6 * scale,
     });
   }
-  return boxes;
+  return [...boxes, ...townColliders.map((box) => ({ ...box })), townGateCollider(gateOpen)];
 }
 
 export function isWalkable(act: number, boxes: Collider[], x: number, z: number): boolean {

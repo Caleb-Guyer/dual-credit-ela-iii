@@ -8,6 +8,8 @@ import {
 } from './characters';
 import { conversationActors } from './conversation';
 import { selectAttention, type AttentionPoint } from './attention';
+import { TownLife, type TownBuilder, type TownInteractionPose, type TownOpen } from './town';
+import { townSites } from './town-layout';
 import {
   createMotion,
   setMotionPose,
@@ -99,6 +101,9 @@ export class ConcordWorld {
   private shownProgress = 0;
   private beforeInteraction: { yaw: number; pitch: number } | null = null;
   private returnView: { yaw: number; pitch: number } | null = null;
+  private town?: TownLife;
+  private townInteraction: TownInteractionPose | null = null;
+  private beforeTownInteraction: { yaw: number; pitch: number } | null = null;
   private waterLines: T.Mesh[] = [];
   private waterMap?: T.Texture;
   near: Hotspot | null = null;
@@ -294,13 +299,14 @@ export class ConcordWorld {
     width: number,
     depth: number,
     tile: number,
+    elevation = 0.018,
   ) {
     const map = this.texture(finish, color);
     map.repeat.set(width / tile, depth / tile);
     const material = new T.MeshStandardMaterial({ map, roughness: 1, metalness: 0 });
     const mesh = new T.Mesh(new T.PlaneGeometry(width, depth), material);
     mesh.rotation.x = -Math.PI / 2;
-    mesh.position.set(x, 0.018, z);
+    mesh.position.set(x, elevation, z);
     mesh.receiveShadow = true;
     this.scene.add(mesh);
   }
@@ -412,73 +418,23 @@ export class ConcordWorld {
     color: string,
     seed: number,
   ) {
-    const side = x < 0 ? 1 : -1;
-    const front = x + side * (w / 2 + 0.03);
-    const wallFinish: PaintedSurface = seed % 4 === 2 ? 'brick' : 'plaster';
-    this.box('#777466', x, 0.19, z, w + 0.25, 0.38, d + 0.25, 0, '', 'stone');
-    this.box(
-      wallFinish === 'brick' ? '#a87c65' : color,
-      x,
-      h / 2 + 0.3,
-      z,
-      w,
-      h,
-      d,
-      0,
-      '',
-      wallFinish,
-    );
-    const roofColor = seed % 3 === 0 ? '#655854' : seed % 3 === 1 ? '#4a545d' : '#545d5b';
-    this.add('roof', roofColor, x, h + 0.3, z, w + 0.65, w * 0.66, d + 0.65, 0, '', 'slate');
-    this.box('#e7d9bb', x, h + 0.33, z, w + 0.75, 0.14, d + 0.75);
-    for (const corner of [-d / 2 + 0.07, d / 2 - 0.07])
-      this.box('#e7d9bb', front + side * 0.04, h / 2 + 0.32, z + corner, 0.15, h, 0.15);
-    if (wallFinish !== 'brick')
-      for (let y = 0.6; y < h; y += 0.26) {
-        this.box('#a4a38d', front + side * 0.02, y, z, 0.025, 0.018, d - 0.15);
-        this.box('#a4a38d', x, y, z + d / 2 + 0.018, w - 0.15, 0.018, 0.025);
-      }
-    const chimneyX = x + w * (seed % 2 ? -0.22 : 0.24);
-    this.box('#916b58', chimneyX, h + 1.6, z - d * 0.18, 0.63, 2.3, 0.68, 0, '', 'brick');
-    this.box('#b49a7c', chimneyX, h + 2.8, z - d * 0.18, 0.83, 0.16, 0.87);
-    this.box('#323e3f', chimneyX, h + 2.89, z - d * 0.18, 0.5, 0.025, 0.48);
-    const doorColor = ['#384d4a', '#6c493d', '#414c60', '#645b40', '#4a5c57'][seed % 5];
-    this.box('#e8dec5', front + side * 0.02, 1.43, z, 0.15, 2.34, 1.42);
-    this.box(doorColor, front + side * 0.105, 1.35, z, 0.11, 2.1, 1.15, 0, '', 'wood');
-    for (const dz of [-0.27, 0.27])
-      for (const dy of [0.85, 1.7])
-        this.box('#273e3e', front + side * 0.17, dy, z + dz, 0.02, 0.56, 0.39);
-    this.add('sphere', '#b6a16c', front + side * 0.2, 1.28, z + 0.4, 0.035, 0.035, 0.035);
-    this.box('#b7ad94', front + side * 0.2, 0.25, z, 0.8, 0.2, 1.65, 0, '', 'stone');
-    this.box('#a7a38a', front + side * 0.55, 0.13, z, 0.6, 0.14, 1.9, 0, '', 'stone');
-    for (const offset of [-d * 0.3, d * 0.3]) {
-      this.window(front + side * 0.09, 2.05, z + offset, 0.72, 1.05, side, seed % 3 !== 2);
-      if (h > 4.8) this.window(front + side * 0.09, 4.0, z + offset, 0.65, 0.9, side, true);
-    }
-    for (const offset of [-w * 0.27, w * 0.27])
-      this.window(x + offset, 2.1, z + d / 2 + 0.09, 0.72, 1.0, 0, false);
-    if (seed % 3 === 0) {
-      const awning = new T.Mesh(new T.PlaneGeometry(0.85, 2), this.mat('#8a7054', '', 'cloth'));
-      awning.quaternion.setFromUnitVectors(
-        new T.Vector3(0, 0, 1),
-        new T.Vector3(side * 0.2, 1, 0).normalize(),
-      );
-      (awning.material as T.MeshStandardMaterial).side = T.DoubleSide;
-      awning.position.set(front + side * 0.45, 2.6, z);
-      this.scene.add(awning);
-      this.segment(
-        '#3a4542',
-        new T.Vector3(front + side * 0.8, 0.2, z - 0.83),
-        new T.Vector3(front + side * 0.8, 2.45, z - 0.83),
-        0.035,
-      );
-      this.segment(
-        '#3a4542',
-        new T.Vector3(front + side * 0.8, 0.2, z + 0.83),
-        new T.Vector3(front + side * 0.8, 2.45, z + 0.83),
-        0.035,
-      );
-    }
+    this.town?.house({ x, z, w, d, h, color, seed });
+  }
+
+  private townBuilder(): TownBuilder {
+    return {
+      scene: this.scene,
+      boxes: this.boxes,
+      textures: this.textures,
+      mat: (...args) => this.mat(...args),
+      add: (...args) => this.add(...args),
+      box: (...args) => this.box(...args),
+      prop: (...args) => this.prop(...args),
+      segment: (...args) => this.segment(...args),
+      window: (...args) => this.window(...args),
+      sign: (...args) => this.sign(...args),
+      ground: (...args) => this.ground(...args),
+    };
   }
 
   private glow(x: number, y: number, z: number, scale: number, opacity = 0.3) {
@@ -806,6 +762,29 @@ export class ConcordWorld {
     this.conversation = null;
     this.returnView = this.beforeConversation;
     this.beforeConversation = null;
+  }
+
+  setTownInteraction(pose: TownInteractionPose) {
+    if (!this.town) return;
+    if (!this.townInteraction) {
+      this.beforeTownInteraction = { yaw: this.yaw, pitch: this.pitch };
+      this.returnView = null;
+      this.keys.clear();
+    }
+    this.townInteraction = { ...pose };
+    this.town.setInteraction(pose);
+  }
+
+  clearTownInteraction() {
+    if (!this.townInteraction) return;
+    this.townInteraction = null;
+    this.town?.clearInteraction();
+    this.returnView = this.beforeTownInteraction;
+    this.beforeTownInteraction = null;
+  }
+
+  setTownOpen(open: TownOpen) {
+    this.town?.setOpen(open);
   }
 
   getConversationAnchor() {
@@ -1203,6 +1182,7 @@ export class ConcordWorld {
     mesh.position.set(x, y, z);
     mesh.rotation.y = rotation;
     this.scene.add(mesh);
+    return mesh;
   }
 
   private buildTown(dawn: boolean) {
@@ -1225,7 +1205,7 @@ export class ConcordWorld {
     this.scene.add(sky);
     this.box('#656c54', 0, -0.23, 0, 100, 0.4, 120);
     this.ground('road', '#ac9d7e', 0, -1, 9.7, 66, 10);
-    for (const x of [-5.13, 5.13]) this.box('#a2a18a', x, 0.02, 0, 0.45, 0.11, 65, 0, '', 'stone');
+    this.town = new TownLife(this.townBuilder(), dawn);
     const colors = ['#d6c9a9', '#ac8a73', '#c7c7b2', '#b9b6a2', '#cac2a7'];
     for (let i = 0; i < 5; i++) {
       this.house(-9.8 - (i % 2) * 0.8, -22 + i * 11, 7.1, 7.1, i % 2 ? 5.5 : 4.5, colors[i], i);
@@ -1262,6 +1242,7 @@ export class ConcordWorld {
     // Gardens sit beyond the road edge; their repeated rails make a coherent boundary.
     for (const side of [-1, 1])
       for (const z of [-5, 6, 17]) {
+        if (side === -1 && z === 6) continue;
         const x = side * 6.35;
         for (const offset of [-1.4, -0.7, 0, 0.7, 1.4]) {
           this.box('#b8b293', x, 0.52, z + offset, 0.09, 1.04, 0.14, 0, '', 'wood');
@@ -1485,6 +1466,7 @@ export class ConcordWorld {
     this.box('#8e7c5b', -3.2, 0.58, -10, 0.13, 1.16, 0.13, 0, '', 'wood');
     this.letterbox();
     this.workingYards();
+    this.town.finish();
     // A distant moon/sun, stars and layered hills establish depth beyond the playable street.
     const skyBody = new T.Mesh(
       new T.SphereGeometry(1, 32, 20),
@@ -1808,7 +1790,7 @@ export class ConcordWorld {
   }
 
   look(dx: number, dy: number) {
-    if (this.getState().paused || this.preview || this.conversation) return;
+    if (this.getState().paused || this.preview || this.conversation || this.townInteraction) return;
     this.returnView = null;
     this.yaw -= dx * 0.004;
     this.pitch = T.MathUtils.clamp(this.pitch - dy * 0.003, -1.05, 1.05);
@@ -1860,7 +1842,7 @@ export class ConcordWorld {
           });
         this.motion.yaw = this.yaw;
         this.motion.pitch = this.pitch;
-        if (this.returnView && !this.interaction && !this.conversation) {
+        if (this.returnView && !this.interaction && !this.conversation && !this.townInteraction) {
           if (['KeyQ', 'KeyR', 'PageUp', 'PageDown'].some((key) => this.keys.has(key)))
             this.returnView = null;
           else {
@@ -1917,6 +1899,29 @@ export class ConcordWorld {
               (T.MathUtils.clamp(targetPitch, -1.05, 1.05) - this.motion.pitch) *
               (1 - Math.exp(-dt * 3.5));
           }
+        }
+        if (this.townInteraction && state.movementLocked) {
+          const point = townSites[this.townInteraction.id];
+          const targetYaw = Math.atan2(
+            this.camera.position.x - point.x,
+            this.camera.position.z - point.z,
+          );
+          const angle = Math.atan2(
+            Math.sin(targetYaw - this.motion.yaw),
+            Math.cos(targetYaw - this.motion.yaw),
+          );
+          this.motion.yaw += angle * (1 - Math.exp(-dt * 4.2));
+          const distance = Math.max(
+            0.7,
+            Math.hypot(this.camera.position.x - point.x, this.camera.position.z - point.z),
+          );
+          const targetPitch = Math.atan2(point.height - this.motion.eyeHeight, distance) - 0.08;
+          this.motion.pitch = T.MathUtils.damp(
+            this.motion.pitch,
+            T.MathUtils.clamp(targetPitch, -0.9, 0.35),
+            4.2,
+            dt,
+          );
         }
         if (this.conversation && state.movementLocked) {
           const person = this.conversationPeople.get(this.conversation.actorId);
@@ -2015,7 +2020,7 @@ export class ConcordWorld {
       this.socialCandidates[index].z = this.people[index].group.position.z;
     }
     this.socialFocus =
-      this.preview || state.paused || this.conversation || this.interaction
+      this.preview || state.paused || this.conversation || this.interaction || this.townInteraction
         ? null
         : selectAttention(
             {
@@ -2076,6 +2081,7 @@ export class ConcordWorld {
       });
       if (this.waterMap) this.waterMap.offset.y += dt * 0.008;
     }
+    this.town?.update(this.time, state.paused ? 0 : dt, state.reduced);
     this.renderer.render(this.scene, this.camera);
   };
 

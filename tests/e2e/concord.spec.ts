@@ -4,6 +4,7 @@ import { debates, evidence, questions, source } from '../../src/concord/data';
 import { freshSave, SAVE_KEY, type ConcordSave } from '../../src/concord/save';
 import { interactionDefs } from '../../src/concord/interactions';
 import { hotspots } from '../../src/concord/navigation';
+import { townActivityDefs, type TownId } from '../../src/concord/exploration';
 import {
   conversationActors,
   conversationDialogue,
@@ -72,7 +73,7 @@ async function enter(page: Page) {
 }
 
 /** Observe the real world through its development module, without production test globals. */
-async function observeWorld(page: Page) {
+async function observeWorld(page: Page, renderFrames?: () => Promise<void>) {
   await page.evaluate(() => Reflect.deleteProperty(window, 'concordTest'));
   await page.evaluate(async () => {
     // Include cached module versions if a developer's HMR update landed during a run.
@@ -98,6 +99,7 @@ async function observeWorld(page: Page) {
       };
     }
   });
+  await renderFrames?.();
   await expect
     .poll(() =>
       page.evaluate(() => {
@@ -132,6 +134,38 @@ async function placePlayer(page: Page, x: number, z: number, yaw = 0) {
     () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
   );
 }
+
+async function townFrames(page: Page, count: number, milliseconds = 250) {
+  for (let frame = 0; frame < count; frame++) await page.clock.fastForward(milliseconds);
+}
+
+/** A paused-clock fixture must not await rAF; the controlled frames below render the real pose. */
+async function townPose(page: Page, x: number, z: number, yaw: number, pitch = -0.03) {
+  await page.evaluate(
+    ({ x, z, yaw, pitch }) => {
+      const world = window.concordTest;
+      world.keys.clear();
+      world.camera.position.set(x, 1.68, z);
+      world.yaw = yaw;
+      world.pitch = pitch;
+    },
+    { x, z, yaw, pitch },
+  );
+  await townFrames(page, 2);
+}
+
+async function aimAtTown(page: Page, id: TownId) {
+  const pose = townActivityDefs[id].approach;
+  await townPose(page, pose.x, pose.z, pose.yaw);
+  await expect(page.locator('.cn-town-affordance')).toHaveAttribute('data-town-id', id);
+  await expect(page.locator('.cn-town-action')).toBeVisible();
+}
+
+const townMeshPose = (page: Page, name: string) =>
+  page.evaluate((name) => {
+    const mesh = window.concordTest.scene.getObjectByName(name)!;
+    return { rotation: mesh.rotation.toArray().slice(0, 3) as number[], visible: mesh.visible };
+  }, name);
 
 async function approachObject(page: Page, id: string, touch = false) {
   const target = hotspots.find((point) => point.id === id)!;
@@ -581,6 +615,298 @@ test('walking accelerates, brakes, crosses the bridge to both banks and slides a
   const westBank = await page.evaluate(() => window.concordTest.camera.position.toArray());
   expect(westBank[1]).toBeCloseTo(1.68, 2);
   expect(westBank[2]).toBeCloseTo(18, 2);
+});
+
+test('town objects respond in the street and the garden gate opens a real walking route', async ({
+  page,
+}) => {
+  const failures: string[] = [];
+  page.on('pageerror', (error) => failures.push(error.message));
+  await page.clock.install({ time: Date.parse('2026-10-25T16:00:00.000Z') });
+  await setup(page, { reduced: false });
+  await enter(page);
+  await observeWorld(page);
+  const before = await saved(page);
+  await page.evaluate(async () => {
+    const module = await import(
+      /* @vite-ignore */ new URL('/src/concord/audio.ts', location.href).href
+    );
+    const cues: string[] = [];
+    Reflect.set(window.concordTest, 'townCueLog', cues);
+    const original = module.ConcordAudio.prototype.play;
+    module.ConcordAudio.prototype.play = function (cue: string, ...args: unknown[]) {
+      cues.push(cue);
+      return original.call(this, cue, ...args);
+    };
+  });
+  await page.clock.pauseAt(await page.evaluate(() => Date.now() + 300_000));
+  try {
+    await townPose(page, 1.6, 18.5, 0.28, 0.02);
+    await page.screenshot({ path: 'docs/screenshots/concord-town-street.png' });
+    const profile = await page.evaluate(() => {
+      const world = window.concordTest;
+      const gl = world.renderer.getContext(),
+        debug = gl.getExtension('WEBGL_debug_renderer_info');
+      const materials = new Map(
+        [...(Reflect.get(world, 'materials') as Map<string, THREE.Material>)].map(
+          ([key, value]) => [value.uuid, key],
+        ),
+      );
+      const byMaterial = new Map<string, number>();
+      let meshes = 0,
+        instanced = 0,
+        shadowCasters = 0;
+      world.scene.traverseVisible((object) => {
+        const mesh = object as THREE.Mesh;
+        if (!mesh.isMesh) return;
+        meshes++;
+        if ((mesh as THREE.InstancedMesh).isInstancedMesh) instanced++;
+        if (mesh.castShadow) shadowCasters++;
+        for (const material of Array.isArray(mesh.material) ? mesh.material : [mesh.material]) {
+          const key = materials.get(material.uuid) ?? material.type;
+          byMaterial.set(key, (byMaterial.get(key) ?? 0) + 1);
+        }
+      });
+      return {
+        calls: world.renderer.info.render.calls,
+        triangles: world.renderer.info.render.triangles,
+        geometries: world.renderer.info.memory.geometries,
+        textures: world.renderer.info.memory.textures,
+        meshes,
+        instanced,
+        shadowCasters,
+        materialMeshes: [...byMaterial].sort((a, b) => b[1] - a[1]).slice(0, 16),
+        driver: debug ? String(gl.getParameter(debug.UNMASKED_RENDERER_WEBGL)) : '',
+      };
+    });
+    await test.info().attach('town-render-profile', {
+      body: JSON.stringify(profile, null, 2),
+      contentType: 'application/json',
+    });
+
+    await aimAtTown(page, 'pump');
+    const restingPump = await townMeshPose(page, 'Town pump lever');
+    await page.keyboard.down('e');
+    const pumpMotion: number[] = [];
+    for (let frame = 0; frame < 2; frame++) {
+      await townFrames(page, 1);
+      pumpMotion.push((await townMeshPose(page, 'Town pump lever')).rotation[2]);
+    }
+    const partial = page.locator('.cn-town-affordance').getByRole('progressbar');
+    expect(Number(await partial.getAttribute('aria-valuenow'))).toBeGreaterThan(20);
+    expect(Number(await partial.getAttribute('aria-valuenow'))).toBeLessThan(70);
+    expect(
+      Math.max(...pumpMotion.map((angle) => Math.abs(angle - restingPump.rotation[2]))),
+    ).toBeGreaterThan(0.05);
+    await page.keyboard.up('e');
+    await townFrames(page, 1);
+    await expect(partial).toHaveCount(0);
+    await page.keyboard.down('e');
+    await townFrames(page, 2);
+    await page.evaluate(() => window.dispatchEvent(new Event('blur')));
+    await page.keyboard.up('e');
+    await townFrames(page, 5);
+    await expect(partial).toHaveCount(0);
+    await page.keyboard.down('e');
+    await townFrames(page, 2);
+    await page.keyboard.down('w');
+    await townFrames(page, 2);
+    await page.keyboard.up('w');
+    await page.keyboard.up('e');
+    await aimAtTown(page, 'pump');
+    await expect(partial).toHaveCount(0);
+    await page.keyboard.down('e');
+    await townFrames(page, 5);
+    await page.keyboard.up('e');
+    expect((await townMeshPose(page, 'Town pump water')).visible).toBe(true);
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+
+    await aimAtTown(page, 'bell');
+    const restingBell = await townMeshPose(page, 'Town shop bell');
+    const bellCues = () =>
+      page.evaluate(
+        () =>
+          (Reflect.get(window.concordTest, 'townCueLog') as string[]).filter((cue) =>
+            cue.includes('bell'),
+          ).length,
+      );
+    await page.keyboard.press('e');
+    await townFrames(page, 1);
+    const ringingBell = await townMeshPose(page, 'Town shop bell');
+    expect(Math.abs(ringingBell.rotation[2] - restingBell.rotation[2])).toBeGreaterThan(0.02);
+    expect(await bellCues()).toBe(1);
+    for (let press = 0; press < 3; press++) await page.keyboard.press('e');
+    expect(await bellCues()).toBe(1);
+    await townFrames(page, 4);
+    await page.keyboard.press('e');
+    expect(await bellCues()).toBe(2);
+
+    await aimAtTown(page, 'gate');
+    await page.keyboard.down('w');
+    await townFrames(page, 6);
+    await page.keyboard.up('w');
+    expect(await page.evaluate(() => window.concordTest.camera.position.x)).toBeGreaterThan(-5.9);
+    await aimAtTown(page, 'gate');
+    await page.keyboard.down('e');
+    await townFrames(page, 4);
+    await page.keyboard.up('e');
+    await townFrames(page, 10);
+    expect((await townMeshPose(page, 'Town garden gate')).rotation[1]).toBeCloseTo(-Math.PI / 2, 1);
+    await page.keyboard.down('w');
+    await townFrames(page, 8);
+    await page.keyboard.up('w');
+    await townFrames(page, 2);
+    expect(await page.evaluate(() => window.concordTest.camera.position.x)).toBeLessThan(-8.5);
+    await townPose(page, -6.6, 5.5, -Math.PI / 2, 0);
+    await page.keyboard.down('e');
+    await townFrames(page, 4);
+    await page.keyboard.up('e');
+    expect((await townMeshPose(page, 'Town garden gate')).rotation[1]).toBeCloseTo(-Math.PI / 2, 1);
+    await expect(page.locator('.cn-town-affordance')).toContainText('Step clear');
+    await townPose(page, -4.8, 5.8, 1.65, -0.03);
+    await townFrames(page, 4);
+    await page.screenshot({ path: 'docs/screenshots/concord-town-garden.png' });
+
+    await aimAtTown(page, 'shutter');
+    const closedShutter = await townMeshPose(page, 'Town workshop shutter');
+    await page.keyboard.down('e');
+    await townFrames(page, 5);
+    await page.keyboard.up('e');
+    await townFrames(page, 10);
+    const openShutter = await townMeshPose(page, 'Town workshop shutter');
+    expect(Math.abs(openShutter.rotation[1] - closedShutter.rotation[1])).toBeGreaterThan(2.5);
+    const workshopDepth = await page.evaluate(() => {
+      const interior = window.concordTest.scene.getObjectByName('Town workshop interior')!;
+      interior.updateWorldMatrix(true, true);
+      const xs: number[] = [];
+      interior.traverse((object) => {
+        const mesh = object as THREE.Mesh<THREE.BufferGeometry>;
+        const vertices = mesh.geometry?.getAttribute('position');
+        if (!vertices) return;
+        const point = object.position.clone();
+        for (let i = 0; i < vertices.count; i++) {
+          point
+            .set(vertices.getX(i), vertices.getY(i), vertices.getZ(i))
+            .applyMatrix4(object.matrixWorld);
+          xs.push(point.x);
+        }
+      });
+      return Math.max(...xs) - Math.min(...xs);
+    });
+    expect(workshopDepth).toBeGreaterThan(0.65);
+    await page.screenshot({ path: 'docs/screenshots/concord-town-workshop.png' });
+    await townPose(page, 1, -17.5, 1, 0.18);
+    await page.screenshot({ path: 'docs/screenshots/concord-town-cooper.png' });
+    await aimAtTown(page, 'shutter');
+    await page.keyboard.down('e');
+    await townFrames(page, 5);
+    await page.keyboard.up('e');
+    await townFrames(page, 10);
+    expect(Math.abs((await townMeshPose(page, 'Town workshop shutter')).rotation[1])).toBeLessThan(
+      0.1,
+    );
+    await page.getByRole('button', { name: 'Open evidence journal', exact: true }).click();
+    await page.getByRole('button', { name: /Back to game/ }).click();
+    await observeWorld(page, () => townFrames(page, 3));
+    await townFrames(page, 10);
+    expect((await townMeshPose(page, 'Town garden gate')).rotation[1]).toBeCloseTo(-Math.PI / 2, 1);
+    expect(Math.abs((await townMeshPose(page, 'Town workshop shutter')).rotation[1])).toBeLessThan(
+      0.1,
+    );
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    expect(await saved(page)).toEqual(before);
+    await aimAtTown(page, 'shutter');
+    await page.keyboard.down('e');
+    await townFrames(page, 5);
+    await page.keyboard.up('e');
+    await townFrames(page, 10);
+    expect((await townMeshPose(page, 'Town workshop shutter')).rotation[1]).toBeGreaterThan(3);
+    await page.getByRole('button', { name: 'Pause game', exact: true }).click();
+    await page
+      .getByRole('dialog', { name: 'Paused', exact: true })
+      .getByRole('button', { name: 'Options', exact: true })
+      .click();
+    const options = page.getByRole('dialog', { name: 'Options', exact: true });
+    await options.getByRole('button', { name: 'Reset Concord progress', exact: true }).click();
+    await options.getByRole('button', { name: 'Reset Concord', exact: true }).click();
+    await expect(page.getByRole('heading', { name: 'One Night in Concord' })).toBeVisible();
+    await page.getByRole('button', { name: 'Begin', exact: true }).click();
+    await page.getByRole('button', { name: 'Step into the scene', exact: true }).click();
+    await observeWorld(page, () => townFrames(page, 3));
+    expect(Math.abs((await townMeshPose(page, 'Town garden gate')).rotation[1])).toBeLessThan(0.01);
+    expect(Math.abs((await townMeshPose(page, 'Town workshop shutter')).rotation[1])).toBeLessThan(
+      0.01,
+    );
+    expect((await saved(page)).collected).toEqual([]);
+    expect((await saved(page)).debates).toEqual([]);
+    expect(failures).toEqual([]);
+  } finally {
+    await page.clock.resume();
+  }
+});
+
+test('phone town actions stay in the world and release a touch hold cleanly', async ({
+  browser,
+}) => {
+  const context = await browser.newContext({
+    viewport: { width: 390, height: 844 },
+    hasTouch: true,
+    isMobile: true,
+  });
+  const page = await context.newPage();
+  const touch = await context.newCDPSession(page);
+  const touchDown = (x: number, y: number) =>
+    touch.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y }] });
+  const touchUp = () =>
+    touch.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  await page.clock.install({ time: Date.parse('2026-10-25T16:00:00.000Z') });
+  await setup(page, { act: 3 });
+  await enter(page);
+  await observeWorld(page);
+  const before = await saved(page);
+  await page.clock.pauseAt(await page.evaluate(() => Date.now() + 300_000));
+  try {
+    await aimAtTown(page, 'pump');
+    const action = page.locator('.cn-town-action');
+    const progress = page.locator('.cn-town-affordance').getByRole('progressbar');
+    const button = (await action.boundingBox())!;
+    await touchDown(button.x + button.width / 2, button.y + button.height / 2);
+    await townFrames(page, 2);
+    expect(Number(await progress.getAttribute('aria-valuenow'))).toBeGreaterThan(20);
+    await touchUp();
+    await townFrames(page, 2);
+    await expect(progress).toHaveCount(0);
+    await touchDown(button.x + button.width / 2, button.y + button.height / 2);
+    await townFrames(page, 4);
+    await page.screenshot({ path: 'docs/screenshots/concord-town-phone.png' });
+    await townFrames(page, 1);
+    await touchUp();
+    expect((await townMeshPose(page, 'Town pump water')).visible).toBe(true);
+
+    await aimAtTown(page, 'gate');
+    const gate = (await action.boundingBox())!;
+    await touchDown(gate.x + gate.width / 2, gate.y + gate.height / 2);
+    await townFrames(page, 4);
+    await touchUp();
+    await townFrames(page, 10);
+    expect((await townMeshPose(page, 'Town garden gate')).rotation[1]).toBeCloseTo(-Math.PI / 2, 1);
+    const forward = (await page
+      .getByRole('button', { name: 'Walk forward', exact: true })
+      .boundingBox())!;
+    await touchDown(forward.x + forward.width / 2, forward.y + forward.height / 2);
+    await townFrames(page, 8);
+    await touchUp();
+    await townFrames(page, 2);
+    expect(await page.evaluate(() => window.concordTest.camera.position.x)).toBeLessThan(-8.5);
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+      true,
+    );
+    expect(await saved(page)).toEqual(before);
+  } finally {
+    await page.clock.resume();
+    await context.close();
+  }
 });
 
 for (const target of hotspots) {

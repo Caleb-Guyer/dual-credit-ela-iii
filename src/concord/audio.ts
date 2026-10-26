@@ -92,6 +92,7 @@ export class ConcordAudio {
     type: OscillatorType = 'sine',
     delay = 0,
     channel: 'effects' | 'ambience' = 'effects',
+    bend = true,
   ) {
     const context = this.context;
     const destination = channel === 'ambience' ? this.ambienceTones : this.effects;
@@ -101,10 +102,11 @@ export class ConcordAudio {
     const now = context.currentTime + delay;
     oscillator.type = type;
     oscillator.frequency.setValueAtTime(frequency, now);
-    oscillator.frequency.exponentialRampToValueAtTime(
-      Math.max(30, frequency * 0.64),
-      now + duration,
-    );
+    if (bend)
+      oscillator.frequency.exponentialRampToValueAtTime(
+        Math.max(30, frequency * 0.64),
+        now + duration,
+      );
     gain.gain.setValueAtTime(0, now);
     gain.gain.linearRampToValueAtTime(volume, now + 0.006);
     gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
@@ -154,6 +156,29 @@ export class ConcordAudio {
         'triangle',
       );
       this.rustle(0.09, surface === 'road' ? 0.55 : 0.15, this.foot % 2 ? 900 : 720);
+    } else if (cue === 'town:bell:finish') {
+      for (const [index, partial] of [1, 2.02, 2.68, 3.94].entries())
+        this.tone(
+          915 * partial,
+          1.5 - index * 0.28,
+          0.11 / (index + 1),
+          'sine',
+          index * 0.008,
+          'effects',
+          false,
+        );
+    } else if (cue.startsWith('town:pump')) {
+      if (cue.endsWith('finish')) this.rustle(0.65, 0.38, 1550);
+      else {
+        this.tone(105, 0.15, 0.085, 'triangle');
+        this.rustle(0.2, 0.16, 420);
+      }
+    } else if (cue.startsWith('town:gate')) {
+      this.tone(cue.endsWith('finish') ? 320 : 145, 0.16, 0.09, 'triangle');
+      this.rustle(0.25, 0.13, 500);
+    } else if (cue.startsWith('town:shutter')) {
+      this.rustle(cue.endsWith('finish') ? 0.13 : 0.32, 0.22, 610);
+      if (cue.endsWith('finish')) this.tone(130, 0.08, 0.075, 'triangle');
     } else if (/offer-coin|refuse-tax/.test(cue)) {
       this.tone(1450, 0.22, 0.09);
       this.tone(2150, 0.13, 0.045, 'sine', 0.025);

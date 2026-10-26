@@ -13,6 +13,7 @@ import {
 } from './conversation';
 import type { ConversationPose } from './scene';
 import type { SpeechProgress } from './speech';
+import { freshTownMemory } from './exploration';
 import { freshSave, readSave, SAVE_KEY, type ConcordSave } from './save';
 import { ConcordAudio } from './audio';
 import './concord.css';
@@ -146,6 +147,7 @@ export default function ConcordCampaign() {
   const [discussion, setDiscussion] = useState<ConversationState | null>(null);
   const [delivery, setDelivery] = useState<ConversationPose | null>(null);
   const speechMemory = useRef<Record<number, SpeechProgress>>({});
+  const townMemory = useRef(freshTownMemory());
   const [initialSpeech, setInitialSpeech] = useState<SpeechProgress | null>(null);
   const [speechAnchor, setSpeechAnchor] = useState<SpeechAnchor>({ x: 0, y: 0, visible: false });
   const returnView = useRef<'home' | 'play'>('home'),
@@ -354,6 +356,10 @@ export default function ConcordCampaign() {
             onConversationAnchor={setSpeechAnchor}
             onSound={(cue, surface, speed) => audio.current?.play(cue, surface, speed)}
             initialPose={positions.current[playAct]}
+            initialTownMemory={townMemory.current}
+            onTownMemory={(memory) => {
+              townMemory.current = memory;
+            }}
             onPosition={(x, z, yaw, pitch) => {
               positions.current[playAct] = { x, z, yaw, pitch };
             }}
@@ -573,6 +579,7 @@ export default function ConcordCampaign() {
                       positions.current = {};
                       discussions.current = {};
                       speechMemory.current = {};
+                      townMemory.current = freshTownMemory();
                       setInitialSpeech(null);
                       setDiscussion(null);
                       setSave(freshSave());
