@@ -66,24 +66,45 @@ describe('Concord conversation acting', () => {
     ).toBe(roles.length);
   });
 
-  it('rests the hands between phrases and closes the mouth at punctuation', () => {
-    const sample = (elapsed: number, revealed: number) =>
+  it('lets the words set a hand beat, then rests at a clause boundary', () => {
+    const text = 'A law cannot answer for me. What do you think?';
+    const sample = (revealed: number, elapsed = 0.6) =>
       sampleConversationPerformance(
         'neighbor',
         2,
         {
           ...delivery,
-          text: 'A.',
+          text,
           elapsed,
           revealed,
         },
         false,
       );
-    expect(sample(0.1, 1).gesture).toBe('rest');
-    expect(sample(1.2, 1).gesture).not.toBe('rest');
-    expect(sample(3, 1).gesture).toBe('rest');
-    expect(sample(0.6, 1).openness).toBeGreaterThan(0.2);
-    expect(sample(0.6, 2).openness).toBe(0);
+    expect(sample(0).gesture).toBe('rest');
+    expect(sample(12).gesture).not.toBe('rest');
+    expect(sample(text.indexOf('.') + 1).gesture).toBe('rest');
+    expect(sample(text.indexOf('.') + 2).gesture).toBe('rest');
+    expect(sample(1).openness).toBeGreaterThan(0.2);
+    expect(sample(text.indexOf('.') + 1).openness).toBe(0);
+    const first = sample(12, 0.6);
+    const delayed = sample(12, 8.1);
+    expect(delayed.leftArm).toEqual(first.leftArm);
+    expect(delayed.rightArm).toEqual(first.rightArm);
+    expect(delayed.leftForearm).toEqual(first.leftForearm);
+    expect(delayed.rightForearm).toEqual(first.rightForearm);
+    expect(delayed.lean).toBe(first.lean);
+    expect(delayed.gesture).toBe(first.gesture);
+  });
+
+  it('does not silently mouth an empty line or words that have not appeared', () => {
+    for (const input of [
+      { text: '', revealed: 0 },
+      { text: undefined, revealed: undefined },
+      { text: 'A thought takes time.', revealed: 0 },
+    ]) {
+      const cue = sampleConversationPerformance('neighbor', 2, { ...delivery, ...input }, false);
+      expect(cue.openness).toBe(0);
+    }
   });
 
   it('acknowledges an answer once instead of endlessly nodding or shaking', () => {

@@ -28,6 +28,7 @@ export type WorldProps = {
   preview?: boolean;
   talkAvailable?: boolean;
   talkResuming?: boolean;
+  speakerFamiliar?: boolean;
   onTalk?: () => void;
   onStepAway?: () => void;
   conversation?: ConversationPose | null;

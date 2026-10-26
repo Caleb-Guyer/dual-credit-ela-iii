@@ -10,7 +10,7 @@ A browser game collection for Dual Credit English Language Arts III. The launch 
 
 ![A conversation on Concord’s common](docs/screenshots/concord-conversation.png)
 
-A first-person 3D exploration and argument game based on Thoreau’s complete 1849 essay. Walk through a lantern-lit village, a tax-office street, a county jail cell, and the road home at dawn. Articulated townspeople turn toward you, gesture, and return to their work. Movement eases into a walk, slides along obstacles, and follows the boards of the bridge; reduced motion removes the walking sway.
+A first-person 3D exploration and argument game based on Thoreau’s complete 1849 essay. Walk through a lantern-lit village, a tax-office street, a county jail cell, and the road home at dawn. Articulated townspeople notice an approach, acknowledge one person at a time, and settle back to work when you leave. Familiar speakers meet your return warmly, and an interrupted conversation resumes its words as well as its argument. Movement eases into a walk, slides along obstacles, and follows the boards of the bridge; reduced motion removes the walking sway.
 
 Twelve encounters make the objects part of play: pull a printing-press lever, turn a ledger page, draw a jail latch, write with a quill, listen at a barred window, and sit by the river. Each takes a few short actions and leaves time to read its consequence before opening the related passage. The poll-tax encounter follows Thoreau’s refusal; a payment preview explains the difference without changing his historical decision.
 

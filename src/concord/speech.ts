@@ -1,3 +1,5 @@
+export type SpeechProgress = { text: string; revealed: number };
+
 /** Character reveal times, including the small breaths a reader takes at punctuation. */
 export function speechSchedule(text: string): readonly number[] {
   const times: number[] = [];

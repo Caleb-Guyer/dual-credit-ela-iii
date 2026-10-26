@@ -7,6 +7,7 @@ import {
   type ConversationPhase,
 } from './characters';
 import { conversationActors } from './conversation';
+import { selectAttention, type AttentionPoint } from './attention';
 import {
   createMotion,
   setMotionPose,
@@ -33,6 +34,7 @@ type State = {
   collected: string[];
   movementLocked?: boolean;
   posture?: 'stand' | 'sit' | 'window';
+  speakerFamiliar?: boolean;
 };
 type Batch = { geometry: T.BufferGeometry; material: T.Material; matrices: T.Matrix4[] };
 export type ConversationPose = {
@@ -75,6 +77,10 @@ export class ConcordWorld {
   private dummy = new T.Object3D();
   private textures: T.Texture[] = [];
   private people: Townsperson[] = [];
+  private socialCandidates: AttentionPoint[] = [];
+  private socialWalls: Collider[] = [];
+  private socialFocus: string | null = null;
+  private metPeople = new Set<Townsperson>();
   private conversationPeople = new Map<string, Townsperson>();
   private conversation: ConversationPose | null = null;
   private conversationStarted = 0;
@@ -106,6 +112,8 @@ export class ConcordWorld {
     readonly onPosition: (x: number, z: number, yaw: number) => void,
   ) {
     this.boxes = navigationObstacles(act);
+    // The cell's front collision boundary represents bars: Jonas remains visible beyond them.
+    this.socialWalls = this.boxes.filter((wall) => !(act === 2 && wall.z === 5.5));
     this.renderer = new T.WebGLRenderer({
       canvas,
       antialias: true,
@@ -677,6 +685,7 @@ export class ConcordWorld {
     );
     this.scene.add(person.group);
     this.people.push(person);
+    this.socialCandidates.push({ id: person.group.uuid, x, z });
     const collider = { x, z, w: 0.18, d: 0.18 };
     this.boxes.push(collider);
     this.characterColliders.set(person, collider);
@@ -777,6 +786,7 @@ export class ConcordWorld {
   setConversation(pose: ConversationPose) {
     const actor = conversationActors.find((candidate) => candidate.id === pose.actorId);
     if (actor?.act !== this.act || !this.conversationPeople.has(pose.actorId)) return;
+    this.metPeople.add(this.conversationPeople.get(pose.actorId)!);
     if (!this.conversation) {
       this.beforeConversation = { yaw: this.yaw, pitch: this.pitch };
       this.returnView = null;
@@ -2000,6 +2010,24 @@ export class ConcordWorld {
     }
     if (this.interaction)
       this.shownProgress = T.MathUtils.damp(this.shownProgress, this.interaction.progress, 14, dt);
+    for (let index = 0; index < this.people.length; index++) {
+      this.socialCandidates[index].x = this.people[index].group.position.x;
+      this.socialCandidates[index].z = this.people[index].group.position.z;
+    }
+    this.socialFocus =
+      this.preview || state.paused || this.conversation || this.interaction
+        ? null
+        : selectAttention(
+            {
+              x: this.camera.position.x,
+              z: this.camera.position.z,
+              yaw: this.yaw,
+              pitch: this.pitch,
+            },
+            this.socialCandidates,
+            this.socialFocus,
+            this.socialWalls,
+          );
     for (const person of this.people) {
       person.update(
         this.time,
@@ -2011,6 +2039,12 @@ export class ConcordWorld {
         this.conversation && this.conversationPeople.get(this.conversation.actorId) === person
           ? { ...this.conversation, elapsed: this.time - this.conversationStarted }
           : undefined,
+        {
+          focused: this.socialFocus === person.group.uuid,
+          familiar:
+            this.metPeople.has(person) ||
+            (!!state.speakerFamiliar && !!person.group.userData.actorId),
+        },
       );
       const collider = this.characterColliders.get(person)!;
       collider.x = person.group.position.x;

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { speechCountAt, speechSchedule } from './speech';
+import { speechCountAt, speechSchedule, type SpeechProgress } from './speech';
 import { debates, evidence } from './data';
 import { SourcePanel } from './Study';
 import {
@@ -20,6 +20,7 @@ type Props = {
   paused: boolean;
   anchor: SpeechAnchor;
   ending: string;
+  initialSpeech?: SpeechProgress | null;
   onAction: (action: ConversationAction) => void;
   onDelivery: (pose: ConversationPose) => void;
   onClose: () => void;
@@ -39,8 +40,17 @@ export default function Conversation(props: Props) {
   const root = useRef<HTMLElement>(null);
   const callbacks = useRef(props);
   callbacks.current = props;
-  const progress = useRef({ key: lineKey, count: 0, elapsed: 0 });
-  const [reveal, setReveal] = useState({ key: lineKey, count: 0 });
+  const remembered = props.initialSpeech;
+  const startingCount =
+    remembered?.text === line && Number.isFinite(remembered.revealed)
+      ? Math.max(0, Math.min(line.length, Math.floor(remembered.revealed)))
+      : 0;
+  const progress = useRef({
+    key: lineKey,
+    count: startingCount,
+    elapsed: timing[startingCount - 1] ?? 0,
+  });
+  const [reveal, setReveal] = useState({ key: lineKey, count: startingCount });
   const [paragraph, setParagraph] = useState<number | null>(null);
   const hand = conversationHand(state.debateId, state.round);
   const quoteIndex = Math.max(
@@ -118,6 +128,7 @@ export default function Conversation(props: Props) {
               ? 'considering'
               : 'listening',
       beat:
+        state.attempts * 100 +
         state.round * 10 +
         ['opening', 'reply', 'evidence', 'response', 'farewell', 'complete'].indexOf(state.stage),
       speaking: !revealed && !paused && paragraph === null,
@@ -129,6 +140,7 @@ export default function Conversation(props: Props) {
     state.round,
     state.stage,
     state.result,
+    state.attempts,
     farewell,
     revealed,
     count,

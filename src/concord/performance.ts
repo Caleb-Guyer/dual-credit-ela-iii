@@ -54,6 +54,35 @@ const personalities: Record<CharacterRole, { amplitude: number; pace: number; ti
   merchant: { amplitude: 0.74, pace: 0.95, tilt: 0.026 },
 };
 
+type Phrase = { start: number; end: number; boundary: number; question: boolean };
+const phrasePlans = new Map<string, Phrase[]>();
+
+/** A speaker knows the shape of a line before saying it; rendering only advances its cursor. */
+function phrasePlan(text: string): Phrase[] {
+  const cached = phrasePlans.get(text);
+  if (cached) return cached;
+  const phrases: Phrase[] = [];
+  const pattern = /[^,;:.!?—…]+(?:[,;:.!?—…]+|$)/g;
+  for (const match of text.matchAll(pattern)) {
+    const segment = match[0];
+    const punctuation = segment.search(/[,;:.!?—…]/);
+    const content = punctuation < 0 ? segment : segment.slice(0, punctuation);
+    const leading = content.search(/[^\s“"'([]/);
+    if (leading < 0) continue;
+    const end = content.trimEnd().length;
+    phrases.push({
+      start: match.index + leading,
+      end: match.index + end,
+      boundary: match.index + segment.length,
+      question: segment.includes('?'),
+    });
+  }
+  // Keep the small derived cache bounded when a development rehearsal supplies arbitrary lines.
+  if (phrasePlans.size >= 128) phrasePlans.delete(phrasePlans.keys().next().value!);
+  phrasePlans.set(text, phrases);
+  return phrases;
+}
+
 /**
  * Small authored acting beats, sampled without frame counters or random state.
  * Words shape the jaw; clauses shape the hands; the listener gets space between gestures.
@@ -114,16 +143,40 @@ export function sampleConversationPerformance(
   if (speaking) {
     const text = conversation.text ?? '';
     const count = clamp(Math.floor(conversation.revealed ?? t * 38), 0, text.length || Infinity);
-    const letter = text[Math.max(0, count - 1)]?.toLowerCase() ?? 'a';
-    const punctuation = /[.,!?;:—]/.test(letter);
+    const letter = count > 0 ? (text[count - 1]?.toLowerCase() ?? '') : '';
+    const punctuation = /[.,!?;:—…]/.test(letter);
     const vowel = /[aeiouy]/.test(letter);
     const jaw = vowel ? 0.55 : /\s/.test(letter) ? 0.1 : 0.28;
-    result.openness = reduced || punctuation ? 0 : clamp(jaw + Math.sin(t * 17 + phaseSeed) * 0.16);
-    const cycle = reduced ? 0 : Math.floor((t * personality.pace) / 3.3);
-    const local = (t * personality.pace) % 3.3;
-    const gesture = reduced ? 0.38 : pulse(local, 0.35, 1.75);
-    const accent = reduced ? 0 : pulse(local, 1.1, 0.56) * 0.2;
-    const hand = (Math.floor(hash(phaseSeed + cycle) * 10) + beat) % 3;
+    result.openness =
+      reduced || punctuation || !letter || /\s/.test(letter)
+        ? 0
+        : clamp(jaw + Math.sin(t * 17 + phaseSeed) * 0.16);
+    let phraseIndex = 0,
+      gesture = reduced ? 0.38 : 0,
+      accent = 0,
+      questionTilt = 0;
+    if (!reduced && text.trim()) {
+      const phrases = phrasePlan(text);
+      const cursor = count - 1;
+      phraseIndex = phrases.findIndex((phrase) => cursor < phrase.boundary);
+      const phrase = phrases[phraseIndex];
+      if (phrase && cursor >= phrase.start && cursor < phrase.end) {
+        const length = phrase.end - phrase.start;
+        const position = clamp((count - phrase.start) / Math.max(1, length));
+        // A short aside earns a smaller beat; a long explanation gets one fuller offer.
+        const energy = clamp((length - 4) / 36);
+        gesture = pulse(position, 0.06 + (1 - personality.pace) * 0.18, 0.8) * energy;
+        accent = pulse(position, 0.31, 0.32) * 0.2;
+        if (phrase.question) questionTilt = pulse(position, 0.35, 0.56) * 0.02 * strength;
+      }
+    } else if (!reduced) {
+      // Older scene cues may have no printed line. Their quiet fallback never invents speech.
+      phraseIndex = Math.floor((t * personality.pace) / 3.3);
+      const local = (t * personality.pace) % 3.3;
+      gesture = pulse(local, 0.35, 1.75);
+      accent = pulse(local, 1.1, 0.56) * 0.2;
+    }
+    const hand = (Math.floor(hash(phaseSeed + Math.max(0, phraseIndex)) * 10) + beat) % 3;
     const amount = gesture * strength;
     const leading = hand === 1 ? result.leftArm : result.rightArm;
     const forearm = hand === 1 ? result.leftForearm : result.rightForearm;
@@ -142,7 +195,7 @@ export function sampleConversationPerformance(
     }
     result.gesture = amount > 0.07 ? (hand === 2 ? 'open-hands' : 'offer') : 'rest';
     result.headPitch -= amount * 0.035;
-    result.headRoll += side * amount * 0.02;
+    result.headRoll += side * (amount * 0.02 + questionTilt);
     result.lean = amount * 0.018;
     if (!reduced && punctuation) result.openness = 0;
   }

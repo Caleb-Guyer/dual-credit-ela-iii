@@ -12,6 +12,7 @@ import {
   type ConversationState,
 } from './conversation';
 import type { ConversationPose } from './scene';
+import type { SpeechProgress } from './speech';
 import { freshSave, readSave, SAVE_KEY, type ConcordSave } from './save';
 import { ConcordAudio } from './audio';
 import './concord.css';
@@ -144,6 +145,8 @@ export default function ConcordCampaign() {
   const discussions = useRef<Record<number, ConversationState>>({});
   const [discussion, setDiscussion] = useState<ConversationState | null>(null);
   const [delivery, setDelivery] = useState<ConversationPose | null>(null);
+  const speechMemory = useRef<Record<number, SpeechProgress>>({});
+  const [initialSpeech, setInitialSpeech] = useState<SpeechProgress | null>(null);
   const [speechAnchor, setSpeechAnchor] = useState<SpeechAnchor>({ x: 0, y: 0, visible: false });
   const returnView = useRef<'home' | 'play'>('home'),
     audio = useRef<ConcordAudio | null>(null);
@@ -217,6 +220,7 @@ export default function ConcordCampaign() {
     setEnding(false);
     setDebate(false);
     setDelivery(null);
+    setInitialSpeech(null);
   }
   function inspect(id: string) {
     const item = evidence.find((e) => e.id === id);
@@ -234,19 +238,29 @@ export default function ConcordCampaign() {
   }
   function startTalking() {
     const previous = discussions.current[playAct];
-    const next =
-      previous && previous.stage !== 'complete'
-        ? advanceConversation(previous, { type: 'resume' })
-        : startConversation(playAct);
+    const resuming = previous && previous.stage !== 'complete';
+    const next = resuming
+      ? advanceConversation(previous, { type: 'resume' })
+      : startConversation(playAct);
+    const remembered = resuming ? (speechMemory.current[playAct] ?? null) : null;
+    setInitialSpeech(remembered);
     discussions.current[playAct] = next;
     setDiscussion(next);
     setDebate(true);
     setDelivery({
       actorId: conversationActors[playAct].id,
       phase: 'speaking',
-      beat: next.round * 10,
-      speaking: true,
+      beat: next.attempts * 100 + next.round * 10,
+      speaking: !remembered || remembered.revealed < remembered.text.length,
+      text: remembered?.text,
+      revealed: remembered?.revealed,
     });
+  }
+  function rememberDelivery(pose: ConversationPose) {
+    const speaker = conversationActors.findIndex((actor) => actor.id === pose.actorId);
+    if (speaker >= 0 && pose.text !== undefined && pose.revealed !== undefined)
+      speechMemory.current[speaker] = { text: pose.text, revealed: pose.revealed };
+    setDelivery(pose);
   }
   function conversationAction(action: ConversationAction) {
     const previous = discussions.current[playAct];
@@ -333,6 +347,7 @@ export default function ConcordCampaign() {
             talkResuming={
               !!discussions.current[playAct] && discussions.current[playAct].stage !== 'complete'
             }
+            speakerFamiliar={save.debates.includes(playAct) || !!discussions.current[playAct]}
             onTalk={startTalking}
             onStepAway={stepAway}
             conversation={debate ? delivery : null}
@@ -428,8 +443,9 @@ export default function ConcordCampaign() {
               paused={blocked}
               anchor={speechAnchor}
               ending={act.ending}
+              initialSpeech={initialSpeech}
               onAction={conversationAction}
-              onDelivery={setDelivery}
+              onDelivery={rememberDelivery}
               onClose={stepAway}
               onContinue={continueJourney}
             />
@@ -556,6 +572,8 @@ export default function ConcordCampaign() {
                     onClick={() => {
                       positions.current = {};
                       discussions.current = {};
+                      speechMemory.current = {};
+                      setInitialSpeech(null);
                       setDiscussion(null);
                       setSave(freshSave());
                       setPlayAct(0);

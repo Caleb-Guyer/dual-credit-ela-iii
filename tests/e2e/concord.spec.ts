@@ -648,6 +648,147 @@ test('a returning reader can replay a collected scene without changing reading h
   expect(new Set((await saved(page)).collected).size).toBe(12);
 });
 
+test('townspeople acknowledge one looked-at neighbor and return to work when you leave', async ({
+  page,
+}) => {
+  await page.clock.install({ time: Date.parse('2026-10-25T12:00:00.000Z') });
+  await setup(page, { collected: evidence.map((card) => card.id), reduced: false });
+  await enter(page);
+  await observeWorld(page);
+  const speaker = conversationActors[0];
+  const originalHead = await page.evaluate((id) => {
+    const actor = window.concordTest.scene.children.find(
+      (object) => object.userData.actorId === id,
+    )!;
+    return actor.getObjectByName('Character head')!.quaternion.toArray();
+  }, speaker.id);
+  const socialState = () =>
+    page.evaluate(() =>
+      window.concordTest.scene.children
+        .filter((object) => object.userData.character)
+        .map((actor) => ({
+          id: actor.userData.actorId ?? actor.name,
+          focused: !!actor.userData.focused,
+          attention: Number(actor.userData.socialAttention ?? 0),
+        })),
+    );
+  // Drive actual rendering ticks at four frames per second, so acknowledgment windows
+  // and returning to work do not depend on the test machine's graphics speed.
+  await page.clock.pauseAt(await page.evaluate(() => Date.now() + 300_000));
+  const setView = (yaw: number) =>
+    page.evaluate(
+      ({ x, z, yaw }) => {
+        const world = window.concordTest;
+        world.keys.clear();
+        world.camera.position.set(x, 1.68, z);
+        world.yaw = yaw;
+        world.pitch = -0.03;
+      },
+      { ...speaker.approach, yaw },
+    );
+  const frames = async (count: number) => {
+    for (let frame = 0; frame < count; frame++) await page.clock.fastForward(250);
+  };
+  await setView(speaker.approach.yaw ?? 0);
+  await frames(5);
+  expect((await socialState()).filter((actor) => actor.focused).map((actor) => actor.id)).toEqual([
+    speaker.id,
+  ]);
+  expect((await socialState()).find((actor) => actor.id === speaker.id)!.attention).toBeGreaterThan(
+    0.65,
+  );
+  expect(
+    Math.max(
+      0,
+      ...(await socialState())
+        .filter((actor) => actor.id !== speaker.id)
+        .map((actor) => actor.attention),
+    ),
+  ).toBeLessThan(0.08);
+  await expect(page.locator('.cn-conversation')).toHaveCount(0);
+  const openGreeting = () =>
+    page.evaluate((id) => {
+      const actor = window.concordTest.scene.children.find(
+        (object) => object.userData.actorId === id,
+      )!;
+      return (
+        actor.userData.greeting > 0.2 &&
+        actor.getObjectByName('Left eye')!.scale.y > 0.8 &&
+        actor.getObjectByName('Right eye')!.scale.y > 0.8
+      );
+    }, speaker.id);
+  for (let frame = 0; frame < 12 && !(await openGreeting()); frame++)
+    await page.clock.fastForward(80);
+  expect(await openGreeting()).toBe(true);
+  await page.screenshot({ path: 'docs/screenshots/concord-greeting.png' });
+  // Attention is an invitation; it does not begin or score the debate for the player.
+  expect((await saved(page)).debates).toEqual([]);
+  await page.keyboard.press('e');
+  await expect(page.locator('.cn-conversation')).toBeVisible();
+  await revealSpeech(page);
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.cn-conversation')).toHaveCount(0);
+  await frames(10);
+  await expectExpression(page, 0, 'warm');
+  await expect
+    .poll(async () =>
+      (await socialState()).filter((actor) => actor.focused).map((actor) => actor.id),
+    )
+    .toEqual([speaker.id]);
+  await setView((speaker.approach.yaw ?? 0) + Math.PI);
+  await frames(25);
+  await expect
+    .poll(async () =>
+      (await socialState()).filter((actor) => actor.focused).map((actor) => actor.id),
+    )
+    .toEqual([]);
+  await expect
+    .poll(async () => (await socialState()).find((actor) => actor.id === speaker.id)!.attention)
+    .toBeLessThan(0.05);
+  await expect
+    .poll(() =>
+      page.evaluate(
+        ({ id, rotation }) => {
+          const actor = window.concordTest.scene.children.find(
+            (object) => object.userData.actorId === id,
+          )!;
+          const head = actor.getObjectByName('Character head')!;
+          return head.quaternion.angleTo(head.quaternion.clone().fromArray(rotation));
+        },
+        { id: speaker.id, rotation: originalHead },
+      ),
+    )
+    .toBeLessThan(0.09);
+  expect((await saved(page)).debates).toEqual([]);
+  // A partially delivered turn also resumes where it stopped, rather than retyping a greeting.
+  await setView(speaker.approach.yaw ?? 0);
+  await frames(5);
+  await page.keyboard.press('e');
+  await expect(page.locator('.cn-reply')).toHaveCount(3);
+  try {
+    const claim = debates[0].rounds[0].claims.findIndex((choice) => choice.correct);
+    await page.keyboard.press(String(claim + 1));
+    await expect(page.locator('.cn-conversation-quote')).toBeVisible();
+    await page.clock.fastForward(500);
+    const partial = await page.locator('.cn-speech p').innerText();
+    const full = await page.locator('.cn-speech-accessible').innerText();
+    expect(partial.replace('▏', '').length).toBeGreaterThan(10);
+    expect(partial.replace('▏', '').length).toBeLessThan(full.length);
+    await page.keyboard.press('Escape');
+    await expect(page.locator('.cn-conversation')).toHaveCount(0);
+    await page.keyboard.press('e');
+    await expect(page.locator('.cn-conversation-quote')).toBeVisible();
+    expect(await page.locator('.cn-speech p').innerText()).toBe(partial);
+    await page.clock.fastForward(300);
+    const continuing = await page.locator('.cn-speech p').innerText();
+    expect(continuing.startsWith(partial.replace('▏', ''))).toBe(true);
+    expect(continuing.length).toBeGreaterThan(partial.length);
+    expect((await saved(page)).debates).toEqual([]);
+  } finally {
+    await page.clock.resume();
+  }
+});
+
 test('all four debates stay with their 3D speakers through replies, evidence, reactions and farewells', async ({
   page,
 }) => {
@@ -828,6 +969,7 @@ test('all four debates stay with their 3D speakers through replies, evidence, re
       await observeWorld(page);
       await expect(page.locator('.cn-conversation')).toHaveCount(0);
       await expect.poll(async () => (await saved(page)).debates).toContain(act);
+      await expectExpression(page, act, 'warm');
     }
     await page
       .getByRole('button', {
@@ -953,6 +1095,12 @@ test('a 3D speaker articulates with their face and hands, then listens and consi
   await page.getByRole('button', { name: 'Resume', exact: true }).click();
   await expect(page.locator('.cn-reply')).toHaveCount(3);
   await expect(page.locator('.cn-modal-backdrop')).toHaveCount(0);
+  const heardReply = await page.locator('.cn-speech-accessible').innerText();
+  await page.getByRole('button', { name: 'Step away', exact: false }).click();
+  await approachSpeaker(page, 0);
+  expect(await page.locator('.cn-speech-skip').count()).toBe(0);
+  expect(await page.locator('.cn-reply').count()).toBe(3);
+  await expect(page.locator('.cn-speech-accessible')).toHaveText(heardReply);
   const round = debates[0].rounds[0];
   const claimIndex = round.claims.findIndex((claim) => claim.correct);
   await chooseReply(page, conversationReply(0, 0, claimIndex));

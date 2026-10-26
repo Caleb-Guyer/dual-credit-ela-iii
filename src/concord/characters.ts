@@ -2,6 +2,13 @@ import * as T from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { createConversationFace } from './face';
 import {
+  advancePresence,
+  createPresence,
+  samplePresenceGreeting,
+  type CharacterAttention,
+} from './presence';
+export type { CharacterAttention } from './presence';
+import {
   characterBlink,
   sampleConversationPerformance,
   type ConversationPerformance,
@@ -95,7 +102,10 @@ export class Townsperson {
   private baseYaw: number;
   private headYaw = 0;
   private attention = 0;
+  private presence = createPresence();
   private walkTime = 0;
+  private walkStride = 0;
+  private walkWeight = 0;
   private conversationWeight = 0;
   private lastPerformance: ConversationPerformance | null = null;
   private settledRotations = new Map<T.Object3D, T.Quaternion>();
@@ -271,46 +281,82 @@ export class Townsperson {
     action?: string,
     progress = 0,
     conversation?: CharacterConversation,
+    social?: CharacterAttention,
   ) {
     const { role, seed } = this.options;
-    const dx = player.x - this.group.position.x;
-    const dz = player.z - this.group.position.z;
-    const distance = Math.hypot(dx, dz);
+    let dx = player.x - this.group.position.x;
+    let dz = player.z - this.group.position.z;
+    let distance = Math.hypot(dx, dz);
     const reacting =
       !!conversation ||
-      (action === 'c02' && role === 'neighbor') ||
+      (action === 'c02' && role === 'neighbor' && this.options.bonnet) ||
       (action === 'c03' && role === 'printer') ||
       (action === 'c04' && role === 'collector') ||
       (action === 'c05' && role === 'merchant') ||
       (action === 'c06' && role === 'jailer') ||
       (action === 'c10' && role === 'walker');
+    let workYaw =
+      this.baseYaw + (role === 'walker' && Math.cos(this.walkTime * 0.32) < 0 ? Math.PI : 0);
+    const facing = Math.atan2(dx, dz) - workYaw;
+    this.presence = advancePresence(this.presence, {
+      time,
+      dt,
+      distance,
+      facing,
+      focused: social?.focused ?? false,
+      interacting: reacting,
+    });
+    this.attention = this.presence.attention;
+    const greeting = samplePresenceGreeting(this.presence, time, reduced);
+    if (role === 'walker') {
+      // A passer-by pauses for an approach, then continues rather than freezing nearby forever.
+      const lingering = this.presence.focusTime > 6 && distance > 2.5;
+      const walking =
+        !reduced && !reacting && distance > 1.25 && (!this.presence.engaged || lingering);
+      this.walkWeight = T.MathUtils.damp(this.walkWeight, walking ? 1 : 0, 5, dt);
+      const stride = reacting || reduced || distance <= 1.25 ? 0 : this.walkWeight;
+      this.walkTime += dt * stride;
+      this.walkStride += dt * stride * 2.3;
+      this.group.position.z = this.options.z + Math.sin(this.walkTime * 0.32) * 1.3;
+      workYaw = this.baseYaw + (Math.cos(this.walkTime * 0.32) < 0 ? Math.PI : 0);
+      dx = player.x - this.group.position.x;
+      dz = player.z - this.group.position.z;
+      distance = Math.hypot(dx, dz);
+    }
     this.conversationWeight = T.MathUtils.damp(
       this.conversationWeight,
       conversation ? 1 : 0,
       5,
       dt,
     );
-    if (conversation || this.conversationWeight > 0.01) {
-      const facing = conversation ? Math.atan2(dx, dz) : this.baseYaw;
-      const turn = Math.atan2(
-        Math.sin(facing - this.group.rotation.y),
-        Math.cos(facing - this.group.rotation.y),
-      );
-      this.group.rotation.y += turn * (1 - Math.exp(-dt * 4.5));
-    }
-    const attention = distance < 4.7 || reacting ? 1 : 0;
-    this.attention = T.MathUtils.damp(this.attention, attention, 3.8, dt);
+    const workAngle = Math.atan2(
+      Math.sin(Math.atan2(dx, dz) - workYaw),
+      Math.cos(Math.atan2(dx, dz) - workYaw),
+    );
+    const politeTurn =
+      T.MathUtils.clamp(workAngle, -0.65, 0.65) * this.attention * (this.presence.heard ? 0.35 : 1);
+    const bodyFacing = conversation ? Math.atan2(dx, dz) : workYaw + politeTurn;
+    const turn = Math.atan2(
+      Math.sin(bodyFacing - this.group.rotation.y),
+      Math.cos(bodyFacing - this.group.rotation.y),
+    );
+    this.group.rotation.y += turn * (1 - Math.exp(-dt * 4.5));
     const angle = Math.atan2(dx, dz) - this.group.rotation.y;
-    const targetYaw = T.MathUtils.clamp(Math.atan2(Math.sin(angle), Math.cos(angle)), -0.7, 0.7);
+    const playerAngle = Math.atan2(Math.sin(angle), Math.cos(angle));
+    const targetYaw = T.MathUtils.clamp(playerAngle, -0.65, 0.65);
     this.headYaw = T.MathUtils.damp(this.headYaw, targetYaw * this.attention, 4.5, dt);
     const breathe = reduced ? 0 : Math.sin(time * 1.65 + seed) * 0.008;
     this.body.position.y = breathe;
     this.body.rotation.z = reduced ? 0 : Math.sin(time * 0.65 + seed) * 0.009;
+    const readingWork = role === 'printer' || role === 'collector' || role === 'merchant';
     this.head.rotation.set(
-      (reduced ? 0 : Math.sin(time * 0.85 + seed) * 0.018) - this.attention * 0.025,
+      (reduced ? 0 : Math.sin(time * 0.85 + seed) * 0.018) -
+        this.attention * 0.025 +
+        (readingWork ? (1 - this.attention) * 0.08 : 0),
       this.headYaw,
       reacting && role === 'collector' ? Math.sin(progress * Math.PI * 2) * 0.065 : 0,
     );
+    this.head.rotation.x += greeting * (role === 'collector' || role === 'jailer' ? 0.028 : 0.055);
     const speaking = !!conversation?.speaking;
     this.group.userData.conversationPhase = conversation?.phase ?? null;
     this.group.userData.speaking = speaking;
@@ -324,12 +370,12 @@ export class Townsperson {
     this.rightForearm.rotation.set(-0.22, 0, 0);
     this.leftLeg.rotation.x = this.rightLeg.rotation.x = 0;
     if (role === 'neighbor') {
-      const speak = reacting ? 1 : reduced ? 0.25 : (Math.sin(time * 0.45 + seed * 2) + 1) * 0.3;
-      this.rightArm.rotation.x = -0.43 - speak * 0.34;
-      this.rightArm.rotation.z = -0.3 - speak * 0.19;
+      const speak = reacting ? 1 : 0;
+      this.rightArm.rotation.x = -0.2 - speak * 0.57;
+      this.rightArm.rotation.z = -0.12 - speak * 0.37;
       this.rightForearm.rotation.x =
-        -0.8 - (reduced ? 0 : Math.sin(time * 2.1 + seed) * 0.13) * speak;
-      this.leftForearm.rotation.x = -0.55;
+        -0.4 - speak * 0.4 - (reduced ? 0 : Math.sin(time * 2.1 + seed) * 0.13) * speak;
+      this.leftForearm.rotation.x = -0.35 - speak * 0.2;
     } else if (role === 'printer') {
       const press = reacting
         ? Math.sin(progress * Math.PI)
@@ -355,12 +401,23 @@ export class Townsperson {
       this.leftForearm.rotation.x = -1.25;
       this.rightArm.rotation.x = reacting ? -0.68 : -0.1;
       this.rightForearm.rotation.x = reacting ? -0.8 : -0.28;
-    } else if (role === 'walker' && !reduced && distance > 3.5) {
-      const stride = Math.sin(time * 2.3 + seed);
+    } else if (role === 'walker' && !reduced && !reacting) {
+      const stride = Math.sin(this.walkStride + seed) * this.walkWeight;
       this.leftLeg.rotation.x = stride * 0.18;
       this.rightLeg.rotation.x = -stride * 0.18;
       this.leftArm.rotation.x = -stride * 0.1;
       this.rightArm.rotation.x = stride * 0.1;
+    }
+    if (!reacting && greeting > 0) {
+      if (role === 'neighbor' || role === 'walker' || role === 'merchant') {
+        const welcome = greeting * (role === 'walker' ? 0.85 : role === 'merchant' ? 0.45 : 0.7);
+        this.rightArm.rotation.x -= welcome * 0.45;
+        this.rightArm.rotation.z -= welcome * 0.22;
+        this.rightForearm.rotation.x -= welcome * 0.6;
+        this.rightForearm.rotation.y -= welcome * 0.2;
+      } else if (role === 'collector') {
+        this.rightForearm.rotation.y -= greeting * 0.12;
+      }
     }
     const weight = this.conversationWeight;
     if (performance && weight > 0.001) {
@@ -384,23 +441,52 @@ export class Townsperson {
       5,
       dt,
     );
-    this.body.rotation.x = (performance?.lean ?? 0) * weight;
+    const close = !reacting ? T.MathUtils.smoothstep(1.05 - distance, 0, 0.6) * this.attention : 0;
+    this.body.rotation.x =
+      (performance?.lean ?? 0) * weight + (greeting * 0.009 - close * 0.025) * (1 - weight);
+    const greetingWarmth =
+      this.presence.engaged && (social?.familiar || (greeting > 0.1 && role === 'walker'));
     this.face.update(
       {
         expression:
-          performance && weight > 0.04 ? performance.expression : reacting ? 'curious' : 'neutral',
+          performance && weight > 0.04
+            ? performance.expression
+            : greetingWarmth
+              ? 'warm'
+              : this.attention > 0.03
+                ? 'curious'
+                : 'neutral',
         intensity:
-          performance && weight > 0.04 ? performance.intensity * weight : reacting ? 0.3 : 0,
+          performance && weight > 0.04
+            ? performance.intensity * weight
+            : this.attention * (greetingWarmth ? 0.48 : 0.38),
         openness: conversation && performance ? performance.openness : 0,
         blink: characterBlink(time, seed, reduced),
-        gazeX: conversation && performance ? performance.gazeX : 0,
-        gazeY: conversation && performance ? performance.gazeY : 0,
+        gazeX:
+          conversation && performance
+            ? performance.gazeX
+            : T.MathUtils.clamp((playerAngle - this.headYaw) * 0.4, -0.35, 0.35) * this.attention,
+        gazeY: conversation && performance ? performance.gazeY : this.attention * 0.04,
       },
       dt,
     );
     const faceState = this.head.getObjectByName('Conversation face')?.userData;
     this.group.userData.expression = faceState?.expression ?? 'neutral';
-    this.group.userData.gesture = conversation && performance ? performance.gesture : 'rest';
+    this.group.userData.gesture =
+      conversation && performance ? performance.gesture : greeting > 0.02 ? 'acknowledge' : 'rest';
+    this.group.userData.focused = social?.focused ?? false;
+    this.group.userData.socialAttention = this.attention;
+    this.group.userData.noticing = this.presence.engaged;
+    this.group.userData.greeting = greeting;
+    this.group.userData.presence = conversation
+      ? 'talking'
+      : greeting > 0.02
+        ? 'greeting'
+        : this.presence.engaged
+          ? 'attending'
+          : this.attention > 0.025 || weight > 0.025
+            ? 'settling'
+            : 'working';
     this.group.userData.mouthOpenness = faceState?.openness ?? 0;
     this.group.userData.gazeX = faceState?.gazeX ?? 0;
     this.group.userData.gazeY = faceState?.gazeY ?? 0;
@@ -411,23 +497,6 @@ export class Townsperson {
     for (const [joint, settled] of this.settledRotations) {
       settled.slerp(joint.quaternion, 1 - Math.exp(-dt * 10));
       joint.quaternion.copy(settled);
-    }
-    if (
-      role === 'walker' &&
-      !reduced &&
-      !reacting &&
-      this.conversationWeight < 0.05 &&
-      distance > 3.5
-    ) {
-      this.walkTime += dt;
-      const offset = Math.sin(this.walkTime * 0.32) * 1.3;
-      this.group.position.z = this.options.z + offset;
-      const facing = this.baseYaw + (Math.cos(this.walkTime * 0.32) < 0 ? Math.PI : 0);
-      const turn = Math.atan2(
-        Math.sin(facing - this.group.rotation.y),
-        Math.cos(facing - this.group.rotation.y),
-      );
-      this.group.rotation.y += turn * (1 - Math.exp(-dt * 3));
     }
   }
 }
